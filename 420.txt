@@ -1,0 +1,958 @@
+LIST	P=16F877
+INCLUDE	"P16F877.INC"
+
+; LCD Parameters
+LOOP	EQU	H'20'		;loop counter 1 - general
+LOOPA	EQU	H'21'		;loop counter 2 - LCD use only
+LOOPB   EQU     H'49'
+CLKCNT	EQU	H'22'		;125 secs counter
+STORE	EQU	H'23'		;general store
+RSLINE	EQU	H'24'		;bit 4 RS line flag for LCD
+PWD1	EQU	H'27'		;storing the password 1st char
+PWD2	EQU	H'28'		;storing the password 2nd char
+PWD3	EQU	H'29'		;storing the password 3rd char
+PWD4	EQU	H'30'		;storing the password 4th char
+APWD1	EQU	H'31'
+APWD2	EQU	H'32'
+APWD3	EQU	H'33'
+APWD4	EQU	H'34'
+TEMPXOR	EQU	H'35'
+TEMP1	EQU	H'36'
+CONFIRM	EQU	H'37'
+MENKEY  EQU	H'38'
+MENU1  	EQU	H'39'
+MENU2   EQU	H'40'
+MENU3	EQU	H'4A'
+YES 	EQU	H'41'
+NO 	EQU	H'42'
+YESORNO	EQU	H'43'
+ZONECHK	EQU	H'44'
+ZONE1	EQU	H'45'
+ZONE2	EQU	H'46'
+ZONE3	EQU	H'47'
+ZONE4	EQU	H'48'
+PORTC   EQU	H'07'
+
+ARM	EQU	H'4B'
+DATA_EE_ADDR	EQU	H'00'
+DATA_EE_DATA	EQU	H'05'
+FLAG	EQU	H'4C'
+;Bit0:password confirm 
+;Bit1:trigger
+
+;Keypad Parameters
+KEY		EQU	H'25'		;Count of keys
+LOOP1		EQU	H'26'
+
+		ORG	0x00
+		GOTO	START
+
+START	
+		BANKSEL	TRISB
+	
+		CLRF	TRISB		;Port B0-B7 as output
+
+		CLRF	TRISC
+
+
+		MOVLW	B'11110000'	;Port D0-D3 as output and D4-D7 as input
+		MOVWF	TRISD
+
+		MOVLW 	B'11111111'
+		MOVWF 	TRISA
+
+		MOVLW	B'00000110'	;set timer ratio 1:128
+		MOVWF	OPTION_REG		
+		
+		BANKSEL	PORTB
+		CALL    DEFAUTPWD
+		CALL 	INITZONE
+
+		
+MAIN		CALL	LCDSET		;Configure the LCD display
+		CALL	LCDMSG
+		MOVLW	H'C0'
+		CALL 	LCDCMD
+
+		;BTFSC   ARM, 1
+		;CALL	ZONECHECK	;Scan set zones if triggered
+		;BTFSC   FLAG, 1		;IF THE ALARM IS TRIGERED
+		;CALL	INFINEDBUZZER	;With Return
+		
+	
+		CALL 	CHKPWD
+		CALL	LCDSET
+		
+		BTFSC	FLAG, 0		;if password correct  
+		BCF	FLAG, 1		;Stop the alarm
+					;Else
+		BTFSC	FLAG, 0		;if password correct 
+		CALL 	MENU		;Set the menu
+					;else
+		CALL 	ERRMSG		;Show error message, delay 10000ms
+		;CALL 	BUZZ		;(buzzer doesnt have to be activade if wronk password)
+		
+	
+		GOTO	MAIN
+
+
+
+;------------------------------------------------
+NAYE		BTFSC	PORTC,3		;Doesn't make any sense
+		CALL	BUZZ
+		GOTO	NAYE 
+		RETURN 
+;-----------------------------------------------
+
+
+
+
+;Password Check
+;----------------------------------------------
+DEFAUTPWD 	MOVLW	H'38'
+		MOVWF	PWD1
+	
+		MOVLW	H'38'
+		MOVWF	PWD2
+	
+		MOVLW	H'38'
+		MOVWF	PWD3
+		
+		MOVLW	H'38'
+		MOVWF	PWD4	
+		RETURN
+			
+CHKPWD		CALL	GETKEY
+		MOVWF	APWD1
+		CALL	LCDDATA
+		
+		CALL	GETKEY
+		MOVWF	APWD2
+		CALL	LCDDATA
+
+		CALL	GETKEY
+		MOVWF	APWD3
+		CALL	LCDDATA
+		
+		CALL	GETKEY
+		MOVWF	APWD4
+		CALL	LCDDATA
+
+		BCF 	FLAG, 0
+		
+		MOVFW	PWD1	;TEST1
+		XORWF	APWD1
+		MOVWF	TEMPXOR
+		BTFSS	STATUS, Z
+		RETURN
+		MOVFW	PWD2	;TEST2
+		XORWF	APWD2
+		MOVWF	TEMPXOR
+		BTFSS	STATUS, Z
+		RETURN
+		MOVFW	PWD3	;TEST3
+		XORWF	APWD3
+		MOVWF	TEMPXOR
+		BTFSS	STATUS, Z
+		RETURN	
+		MOVFW	PWD4	;TEST4
+		XORWF	APWD4
+		MOVWF	TEMPXOR
+		BTFSS	STATUS, Z
+		RETURN
+		CALL	LCDSET
+		CALL 	CONFMSG
+		CALL 	LCDSET
+		BSF	FLAG, 0
+		RETURN
+;----------------------------------------------
+		
+		
+;Menu stuff		
+;-----------------------------------------------
+;-----------------------------------------------
+MENU		BCF	ARM, 1	
+		CALL	SETMENV
+		CALL	SETMSG 
+		MOVLW	H'C0'
+		CALL 	LCDCMD
+		CALL	ZONEMSG
+		;CALL	CHKMEN
+		;RETURN
+
+CHKMEN		;CALL	SETMENV		;CHECK MENU BUTTONS 
+		CALL	GETKEY
+		MOVWF	MENKEY
+		
+		MOVFW	MENKEY	
+		XORWF	MENU1
+		BTFSC	STATUS, Z
+		CALL 	SETPWD 
+		XORWF	MENU2
+		BTFSC	STATUS, Z
+		CALL 	ZONMEN
+		XORWF	MENU3
+		BTFSC	STATUS, Z
+		CALL    MAIN
+		GOTO	CHKMEN
+		
+SETMENV	        MOVLW	H'31'
+		MOVWF	MENU1
+		
+		MOVLW	H'32'
+		MOVWF	MENU2
+		
+		MOVLW	H'33'
+		MOVWF	MENU3
+		RETURN
+;-----------------------------------------------
+		
+		
+;Password Set	
+;----------------------------------------------
+SETPWD  	CALL	LCDSET
+		CALL	SETPWDMSG
+		CALL	SUBSETPWD
+		CALL	MAIN
+			
+SUBSETPWD	MOVLW	H'C0'
+		CALL 	LCDCMD
+		
+		CALL	GETKEY
+		MOVWF	PWD1
+		CALL	LCDDATA
+		
+		CALL	GETKEY
+		MOVWF	PWD2
+		CALL	LCDDATA
+
+		CALL	GETKEY
+		MOVWF	PWD3
+		CALL	LCDDATA
+		
+		CALL	GETKEY
+		MOVWF	PWD4
+		CALL	LCDDATA
+		
+		CALL	LCDSET
+		CALL	CONFMSG
+		RETURN
+;---------------------------------------------
+		
+		
+;Zone menu
+;-------------------------------------------------------------------
+ZONMEN		CALL	SETMENV
+		CALL	LCDSET
+		CALL	SLTZONEMSG
+		MOVLW	H'C0'
+		CALL 	LCDCMD
+		CALL	SHWZONEMSG
+
+CHKZONMEN	CALL	SETMENV
+		CALL	GETKEY
+		MOVWF	MENKEY
+		MOVFW	MENKEY	
+		XORWF	MENU1
+		BTFSC	STATUS, Z
+		CALL	SELECTZONE
+		XORWF	MENU2
+		BTFSC	STATUS, Z
+		CALL	SHOWZONES
+		GOTO 	CHKMEN
+
+		
+;1-Select Zone message
+SLTZONEMSG	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4	;set RS for data send
+		CLRF	PCLATH		; SOLVING THE PROBLEM
+SLTZONEMSG2	MOVF	LOOP,W		;get table address
+		CALL	MSGSLTZONE	;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MSGSLTZONE1	;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	SLTZONEMSG2	;repeat for next one letter
+MSGSLTZONE1	RETURN	
+MSGSLTZONE	ADDWF	PCL,F		
+		DT "1-Select ZONE",0	;0 is an indicator for end of string
+
+		
+;2-Show Zone message
+SHWZONEMSG	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4	;set RS for data send
+		CLRF	PCLATH		; SOLVING THE PROBLEM
+SHWZONEMSG2	MOVF	LOOP,W		;get table address
+		CALL	MSGSHWZONE	;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MSGSHWZONE1	;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	SHWZONEMSG2	;repeat for next one letter
+MSGSHWZONE1	RETURN	
+MSGSHWZONE	ADDWF	PCL,F		
+		DT "2-Show ZONE",0	;0 is an indicator for end of string
+		
+;Zone select
+SELECTZONE	CALL	LCDSET
+		CALL	Z1MESSAGE		;show zone1
+		CALL	ZONECHECK
+		CALL	ZONE10	
+		CALL	LCDSET
+		CALL	Z2MESSAGE
+		CALL	ZONECHECK
+		CALL	ZONE20	
+		CALL	LCDSET
+		CALL	Z3MESSAGE
+		CALL	ZONECHECK
+		CALL	ZONE30	
+		CALL	LCDSET				
+		CALL	Z4MESSAGE
+		CALL	ZONECHECK
+		CALL	ZONE40
+		CALL	LCDSET
+		;CALL SHOWZONES	
+		CALL	MAIN		;go to back to main OR showzones, delay, call main
+		;RETURN
+;-----------------------------------------------
+;-----------------------------------------------		
+		
+
+
+		
+		
+		
+INITZONE	BCF	ZONE1,0
+		BCF	ZONE2,0
+		BCF	ZONE3,0
+		BCF	ZONE4,0
+		RETURN
+
+
+
+
+
+
+
+
+		
+
+
+		
+
+;Enter Zone message
+;------------------------------------------------		
+		
+SLTZMSG		CLRF	LOOP		;clear loop
+		BSF	RSLINE,4	;set RS for data send
+SLTZMS2		MOVF	LOOP,W		;get table address
+		BSF	PCLATH,0
+		CALL	MSGSLTZ		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MSGSLTZ1	;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	SLTZMS2
+MSGSLTZ1	CLRF	PCLATH		;repeat for next one letter
+		RETURN	
+MSGSLTZ		ADDWF	PCL,F		
+		DT "ENTER ZONE:",0	;0 is an indicator for end of string	
+
+		
+;Buzzer loop  *needs loop 
+;-----------------------------------------------------------------
+BUZZ		MOVLW	H'FFFF'
+		MOVWF	LOOPB
+;DELAYB		BSF	PORTC, 1
+;		CALL	PAUSBB
+;		BCF	PORTC, 1
+;		CALL 	PAUSBB
+;		DECFSZ	LOOPB, 1
+;;		GOTO	DELAYB
+;		RETURN
+;	
+;PAUSBB		MOVLW	H'FF'		;set minimum time between sending full bytes to
+;		MOVWF	LOOP		;LCD - value of 250 seems OK for this prog with
+;DELAYKK	DECFSZ	LOOP,F		;XTAL clk of upto 20MHz
+;		GOTO	DELAYKK		;keep decrementing LOOPA until zero
+		RETURN	
+		
+
+
+		
+
+
+		
+		
+;Set New Password message
+;---------------------------------------------------
+SETPWDMSG	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4	;set RS for data send
+		CLRF	PCLATH		; SOLVING THE PROBLEM
+SETPWDMSG2	MOVF	LOOP,W		;get table address
+		CALL	MSGSETPWD	;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MSGSETPWD1	;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	SETPWDMSG2	;repeat for next one letter
+MSGSETPWD1	RETURN	
+MSGSETPWD	ADDWF	PCL,F		
+		DT "SET NEW PWD:",0	;0 is an indicator for end of string
+
+		
+;1-Change Password  message
+;--------------------------------------------------
+SETMSG		CLRF	LOOP		;clear loop
+		BSF	RSLINE,4	;set RS for data send
+		BSF	PCLATH,0	; SOLVING THE PROBLEM
+SETMS2		MOVF	LOOP,W		;get table address
+		CALL	MSGSET		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MSGSET1		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	SETMS2		;repeat for next one letter
+MSGSET1		CLRF	PCLATH
+		RETURN
+MSGSET		ADDWF	PCL,F		
+		DT "1-CHANGE PWD",0	;0 is an indicator for end of string
+		
+		
+;2-st zone 3-exit  message
+;--------------------------------------------------------
+ZONEMSG		CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		BSF 	PCLATH,0	;set RS for data send
+ZONEMS2		MOVF	LOOP,W		;get table address
+		CALL	MSGZONE		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MSGZONE1	;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZONEMS2		;repeat for next one letter
+MSGZONE1	CLRF	PCLATH
+		RETURN	
+MSGZONE		ADDWF	PCL,F		
+		DT "2-ST ZONE|3-EXIT",0	;0 is an indicator for end of string
+;------------------------------------------------------------
+;SHWZOMSG	CLRF	LOOP		;clear loop
+;		BSF	RSLINE,4
+;		CLRF	PCLATH		;set RS for data send
+;SHWZOMS2	MOVF	LOOP,W		;get table address
+;		CALL	MSGSHWZO	;get message letter
+;		XORLW	0X00		;0x00 is the indicator for last data
+;		BTFSC	STATUS,Z	;has last LCD letter been sent?
+;		GOTO	MSGSHWZO1	;YES, so end the DATA SEND routine
+;		CALL	LCDOUT		;No, send the data to LCD for display
+;		INCF	LOOP,F		;inc loop
+;		GOTO	SHWZOMS2	;repeat for next one letter
+;MSGSHWZO1	RETURN	
+;MSGSHWZO	ADDWF	PCL,F		
+;		DT "ZONE TRIGGERED:",0	;0 is an indicator for end of string
+
+		
+;password confirm
+;-------------------------------------------------------------------
+;sub-routine to send a string of alphanumeric letter to LCD module				
+CONFMSG		CLRF	LOOP		;clear loop	
+		BSF	RSLINE,4	;set RS for data send
+CONFMS2		MOVF	LOOP,W		;get table address
+		BSF	PCLATH,0
+		CALL	MSGCONF		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MSGEND1		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	CONFMS2
+MSGEND1		CLRF	PCLATH		;repeat for next one letter
+		RETURN	
+MSGCONF		ADDWF	PCL,F		
+		DT "PASSWD CONFIRMED",0	;0 is an indicator for end of string
+
+;sub-routine to send a string of alphanumeric letter to LCD module				
+ERRMSG		CLRF	LOOP		;clear loop
+		CALL 	BUZZ
+		BSF	RSLINE,4
+		BSF PCLATH,0	
+ERRMS2		MOVF	LOOP,W		;get table address
+		CALL	MSGERR		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MSGEND2		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ERRMS2		;repeat for next one letter
+MSGEND2		CLRF	PCLATH
+		RETURN	
+MSGERR		ADDWF	PCL,F		
+		DT "Incorect!!!",0	;0 is an indicator for end of string
+PAUS		MOVLW	D'250'		;set minimum time between sending full bytes to
+		MOVWF	LOOP		;LCD - value of 250 seems OK for this prog with
+DELAY1		DECFSZ	LOOP,F		;XTAL clk of upto 20MHz
+		GOTO	DELAY1		;keep decrementing LOOPA until zero
+		RETURN		
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;sub-routine to send a string of LCD command to LCD module
+LCDSET		CALL	PAUSIT
+		CLRF	LOOP		;clr LCD set-up loop
+		CLRF	RSLINE		;clear RS line for instruction send
+LCDST2		BSF	PCLATH, 0	;;;;;;;;;;;;;;;;;;;;;;;;TO FIX PAGING PROBLEM
+		MOVF	LOOP,W		;get table address
+		CALL	TABLCD		;get set-up instruction
+		XORLW	0X00		;0x00 is the indicator for last LCD instruction
+		BTFSC	STATUS,Z	;has last LCD set-up instruction now been done?
+		GOTO	SETEND		;YES, so end the LCD SET routine
+		CALL	LCDOUT		;No, send the instruction to LCD
+		INCF	LOOP,F		;inc loop
+		GOTO	LCDST2		;get the next set-up instruction
+SETEND		CALL	PAUSIT		;perform second 1/5th sec delay
+		RETURN			;to allow final LCD command to occur
+					;(it takes longer than the rest)
+
+;sub-routine to send a string of alphanumeric letter to LCD module				
+LCDMSG		CLRF	LOOP		;clear loop
+		BSF	RSLINE,4	;set RS for data send
+LCDMS2		MOVF	LOOP,W		;get table address
+		CALL	MESSAG		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MSGEND		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	LCDMS2		;repeat for next one letter
+MSGEND		RETURN				
+
+;sub-routine to send one byte data to LCD (which can be a command or alphanumeric letter
+LCDOUT		MOVWF	STORE		;temp store data
+		MOVLW	D'250'		;set minimum time between sending full bytes to
+		MOVWF	LOOPA		;LCD - value of 250 seems OK for this prog with
+DELAY		DECFSZ	LOOPA,F		;XTAL clk of upto 20MHz
+		GOTO	DELAY		;keep decrementing LOOPA until zero
+		CALL	SENDIT		;send MSB
+		CALL	SENDIT		;send LSB
+		RETURN		
+
+;used by LCDOUT to send a 4-bit of one byte data to LCD
+SENDIT		SWAPF	STORE,F		;swap data nibbles
+		MOVF	STORE,W		;get data byte
+		ANDLW	H'0F'		;get nibble from byte (LSB)
+		IORWF	RSLINE,W	;OR the RS bit
+		MOVWF	PORTB		;output the byte
+		BSF	PORTB,5		;set E line high
+		BCF	PORTB,5		;set E line low
+		RETURN			
+
+;sub-routine to send an alphanumeric letter in W register to LCD module
+LCDDATA		BSF	RSLINE,4	;set RS=1. This will set the LCD to Data mode
+		CALL	LCDOUT
+		RETURN			
+
+;sub-routine to send a LCD command in W register to LCD module
+LCDCMD		CLRF	RSLINE		;set RS=0. This will set the LCD to Command mode
+		CALL	LCDOUT
+		RETURN	
+
+;delay subroutine				
+PAUSIT		MOVLW	5		;set delay counter to 30
+		MOVWF	CLKCNT		;(for 1/150th sec x 30)
+		CLRF	INTCON		;clear interupt flag
+PAUSE		BTFSS	INTCON,2	;initial 1/5th sec wait before setting up LCD has a timer time-out been detected?
+		GOTO	PAUSE		;no
+		BCF	INTCON,2	;yes
+		DECFSZ	CLKCNT,F	;dec counter, is it zero?
+		GOTO	PAUSE		;no
+		RETURN			;yes
+
+;sub-routine which consists of a string of LCD command to be setup LCD module
+;0x00 is an indicator for end of string
+TABLCD		ADDWF	PCL,F		;LCD initialisation table
+		RETLW	B'00101000'	;Function Set: 4-bit operation and 2 lines
+		RETLW	B'00001100'	;Display ON/OFF Control: set display on, cursor off, blink off
+		RETLW	B'00000001'	;Clear Display
+		RETLW	B'00000010'	;Return Home: Set cursor to home position
+		RETLW	0X00		;End initialisation table
+
+;sub-routine which consists of a string of alphanumeric letters to be displayed on LCD module
+;0x00 is an indicator for end of string
+MESSAG		ADDWF	PCL,F		
+		DT "ENTER PASSWORD:",0	;0 is an indicator for end of string
+
+;----Assembly language program for interfacing Matrix Keypad module----
+
+;sub-routine to get a keypress from Matrix Keypad module
+;check the "column" of the Matrix Keypad
+GETKEY		CLRF	PORTD
+
+		BSF	PORTD,0		;Check Column1
+		CALL	KEY_COL1	;Check if there is any keypress in Row A,B,C or D of Column1 and return a value for a corresponding key. 
+					;If no keypress found, the subroutine will return 0xFF in W regiter.
+		MOVWF	KEY		;Store the return value from W to KEY (a variable which key the return keypress value).
+		XORLW	0XFF		;Check if value in W is equal to 0xFF.
+		BTFSS	STATUS,Z	;Yes. This means the KEY_COL1 has returned a 0xFF in the W; therefore no keypress detected.
+		GOTO	FOUND1		;No. A keypress is found from 
+	
+		RLF	PORTD 		;Check Column2
+		CALL	KEY_COL2	;Check if there is any keypress in Row A,B,C or D of Column2 and return a value for a corresponding key. 
+					;If no keypress found, the subroutine will return 0xFF in W regiter.
+		MOVWF	KEY		;Store the return value from W to KEY (a variable which key the return keypress value).
+		XORLW	0XFF		;Check if value in W is equal to 0xFF.
+		BTFSS	STATUS,Z	;Yes. This means the KEY_COL2 has returned a 0xFF in the W; therefore no keypress detected.
+		GOTO	FOUND2		;No. A keypress is found from
+
+		RLF	PORTD 		;Check Column3
+		CALL	KEY_COL3	;Check if there is any keypress in Row A,B,C or D of Column2 and return a value for a corresponding key. 
+					;If no keypress found, the subroutine will return 0xFF in W regiter.
+		MOVWF	KEY		;Store the return value from W to KEY (a variable which key the return keypress value)
+		XORLW	0XFF		;Check if value in W is equal to 0xFF.
+		BTFSS	STATUS,Z	;Yes. This means the KEY_COL3 has returned a 0xFF in the W; therefore no keypress detected.
+		GOTO	FOUND3		;No. A keypress is found from
+		GOTO	GETKEY		;Repeat the scanning non-stop
+
+FOUND1		CALL	KEY_COL1	;Check whether if any key in Column1 still being pressed. If no key is pressed, a 0xFF will be returned in W.
+		XORLW	H'FF'		;Check if W is equal to 0xFF
+		BTFSS	STATUS,Z	;Yes. This means the keypress is released by user.
+		GOTO	FOUND1		;No. This means the keypress is still hold by user. Goto FOUND1 and check again until user release the keypress.
+		MOVFW	KEY		;Proceed when user release the keypress and move the KEY value into W.
+		RETURN			;Return to the main program with the detected keypress value (KEY) in W.
+
+FOUND2		CALL	KEY_COL2	;Check whether if any key in Column2 still being pressed. If no key is pressed, a 0xFF will be returned in W.
+		XORLW	H'FF'		;Check if W is equal to 0xFF
+		BTFSS	STATUS,Z	;Yes. This means the keypress is released by user.
+		GOTO	FOUND2		;No. This means the keypress is still hold by user. Goto FOUND1 and check again until user release the keypress.
+		MOVFW	KEY		;Proceed when user release the keypress and move the KEY value into W.
+		RETURN			;Return to the main program with the detected keypress value (KEY) in W.
+	
+FOUND3		CALL	KEY_COL3	;Check whether if any key in Column2 still being pressed. If no key is pressed, a 0xFF will be returned in W.
+		XORLW	H'FF'		;Check if W is equal to 0xFF
+		BTFSS	STATUS,Z	;Yes. This means the keypress is released by user.
+		GOTO	FOUND3		;No. This means the keypress is still hold by user. Goto FOUND1 and check again until user release the keypress.
+		MOVFW	KEY		;Proceed when user release the keypress and move the KEY value into W.
+		RETURN			;Return to the main program with the detected keypress value (KEY) in W.
+	
+;check the "row" of the Matrix Keypad
+KEY_COL1
+		CALL	DEBOUNCE
+		BTFSC	PORTD,4		;Check Row A of Column1
+		RETLW	'1'		;Return an ASCII for character '1' that is 0x31
+		BTFSC	PORTD,5		;Check Row B of Column1
+		RETLW	'4'		;Return an ASCII for character '4' that is 0x34
+		BTFSC	PORTD,6		;Check Row C of Column1
+		RETLW	'7'		;Return an ASCII for character '7' that is 0x37
+		BTFSC	PORTD,7		;Check Row D of Column1
+		RETLW	'*'		;Return an ASCII for character '*' that is 0x2A
+		RETLW	0XFF	
+
+KEY_COL2
+		CALL	DEBOUNCE
+		BTFSC	PORTD,4		;Check Row D of Column2
+		RETLW	'2'		;Return an ASCII for character '2' that is 0x32
+		BTFSC	PORTD,5		;Check Row D of Column2
+		RETLW	'5'		;Return an ASCII for character '1' that is 0x35
+		BTFSC	PORTD,6		;Check Row D of Column2
+		RETLW	'8'		;Return an ASCII for character '1' that is 0x38
+		BTFSC	PORTD,7		;Check Row D of Column2
+		RETLW	'0'		;Return an ASCII for character '1' that is 0x30
+		RETLW	0XFF	
+
+KEY_COL3
+		CALL	DEBOUNCE
+		BTFSC	PORTD,4		;Check Row D of Column3
+		RETLW	'3'		;Return an ASCII for character '1' that is 0x33
+		BTFSC	PORTD,5		;Check Row D of Column3
+		RETLW	'6'		;Return an ASCII for character '1' that is 0x36
+		BTFSC	PORTD,6		;Check Row D of Column3
+		RETLW	'9'		;Return an ASCII for character '1' that is 0x39
+		BTFSC	PORTD,7		;Check Row D of Column3
+		RETLW	'#'		;Return an ASCII for character '1' that is 0x23
+		RETLW	0XFF	
+
+
+
+
+DEBOUNCE				;A push button tends to create 
+		MOVLW	0XFF		;unsettling signal when being pressed 
+		MOVWF	LOOP1		;or released. Therefore, a small delay 
+D_LOOP		DECFSZ	LOOP1		;routine is created to bypass this 
+		GOTO	D_LOOP		;unsettling signal.
+		RETURN
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+Z1MESSAGE	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		CLRF	PCLATH	;set RS for data send
+ZMS1		MOVF	LOOP,W		;get table address
+		CALL	MSGZ1		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MZ1		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZMS1		;repeat for next one letter
+MZ1 		RETURN	
+MSGZ1		BSF 	PCLATH,1
+		ADDWF	PCL,F		
+		DT "ACTIVATE Z1?",0	;0 is an indicator for end of string
+
+Z2MESSAGE	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		CLRF	PCLATH		;set RS for data send
+ZMS2		MOVF	LOOP,W		;get table address
+		CALL	MSGZ2		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MZ2		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZMS2		;repeat for next one letter
+MZ2 		CLRF	PCLATH
+			RETURN	
+MSGZ2		BSF 	PCLATH,1
+			ADDWF	PCL,F		
+			DT "ACTIVATE Z2?",0	;0 is an indicator for end of string
+
+Z3MESSAGE	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		CLRF	PCLATH		;set RS for data send
+ZMS3		MOVF	LOOP,W		;get table address
+		CALL	MSGZ3		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MZ3		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZMS3		;repeat for next one letter
+MZ3 		CLRF	PCLATH
+		RETURN	
+MSGZ3		BSF 	PCLATH,1
+		ADDWF	PCL,F		
+		DT "ACTIVATE Z3?",0	;0 is an indicator for end of string
+
+Z4MESSAGE	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		CLRF	PCLATH		;set RS for data send
+ZMS4		MOVF	LOOP,W		;get table address
+		CALL	MSGZ4		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MZ4		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZMS4		;repeat for next one letter
+MZ4		RETURN	
+MSGZ4		BSF 	PCLATH,1
+		ADDWF	PCL,F		
+		DT "ACTIVATE Z4?",0	;0 is an indicator for end of string
+
+Z5MESSAGE	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		BSF 	PCLATH,1	;set RS for data send
+ZMS5		MOVF	LOOP,W		;get table address
+		CALL	MSGZ5		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MZ5		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZMS5		;repeat for next one letter
+MZ5 		CLRF	PCLATH
+		RETURN	
+MSGZ5		ADDWF	PCL,F		
+		DT  "*- YES #-NO",0	;0 is an indicator for end of string
+
+
+
+
+
+
+
+ZONECHECK	MOVLW	H'C0'
+		CALL 	LCDCMD	
+		CALL 	Z5MESSAGE
+		CLRF	ZONECHK
+			
+LABAS		CALL	CHSOUINON
+		CALL 	GETKEY
+		MOVWF 	YESORNO
+		
+		MOVFW 	YESORNO			
+		XORWF	YES
+		BTFSC	STATUS, Z
+		GOTO	VARZONECHK1
+		XORWF	NO
+		BTFSC	STATUS, Z
+		GOTO	VARZONECHK2
+		GOTO	LABAS
+LA		RETURN
+
+
+
+
+
+CHSOUINON	MOVLW 	H'2A'
+		MOVWF 	YES
+		
+		MOVLW	H'23'
+		MOVWF	NO
+		RETURN	
+
+
+
+			
+
+
+
+VARZONECHK1	BSF	ZONECHK,1
+		GOTO	LA
+			
+
+VARZONECHK2	BCF	ZONECHK,1
+		GOTO	LA 
+
+
+
+
+
+
+
+ZONE10		BTFSC	ZONECHK,1
+		BSF	ZONE1,0
+		RETURN
+
+
+ZONE20		BTFSC	ZONECHK,1
+		BSF	ZONE2,0
+		RETURN
+
+
+
+ZONE30		BTFSC	ZONECHK,1
+		BSF	ZONE3,0
+		RETURN
+
+
+ZONE40		BTFSC	ZONECHK,1
+		BSF	ZONE4,0
+		RETURN
+			
+
+
+SHOWZONES	CALL	LCDSET
+		CALL	ACTIVMSG
+		MOVLW	H'C0'
+		CALL 	LCDCMD	
+		BTFSC	ZONE1,0
+		CALL	Z7MESSAGE	
+		BTFSC	ZONE2,0
+		CALL	Z8MESSAGE	
+		BTFSC	ZONE3,0
+		CALL	Z9MESSAGE	
+		BTFSC	ZONE4,0
+		CALL	Z10MESSAGE
+		RETURN
+
+
+
+ACTIVMSG	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		CLRF	PCLATH	;set RS for data send
+ZMS6		MOVF	LOOP,W
+		CLRF	PCLATH		;get table address
+		CALL	MSGZ6		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MZ6			;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZMS6		;repeat for next one letter
+MZ6 		RETURN	
+MSGZ6		BSF 	PCLATH,1
+		ADDWF	PCL,F		
+		DT "ACTIVE ZONES:",0	;0 is an indicator for end of string
+
+Z7MESSAGE	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		CLRF	PCLATH		;set RS for data send
+ZMS7		MOVF	LOOP,W		;get table address
+		CALL	MSGZ7		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MZ7		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZMS7		;repeat for next one letter
+MZ7 		RETURN	
+MSGZ7		BSF 	PCLATH,1
+		ADDWF	PCL,F		
+		DT " 1",0	;0 is an indicator for end of string
+
+
+Z8MESSAGE	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		BSF 	PCLATH,0   ;;;;;;;;;;;;;;;;ITS WORKING!!
+		;CLRF	PCLATH		;set RS for data send
+ZMS8		MOVF	LOOP,W		;get table address
+		CALL	MSGZ8		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MZ8		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZMS8		;repeat for next one letter
+MZ8		CLRF	PCLATH
+		RETURN	
+MSGZ8		
+		ADDWF	PCL,F		
+		DT " 2",0		;0 is an indicator for end of string
+			
+Z9MESSAGE	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		CLRF	PCLATH
+ZMS9		MOVF	LOOP,W		;get table address
+		CALL	MSGZ9		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MZ9		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZMS9		;repeat for next one letter
+MZ9		RETURN	
+MSGZ9		BSF 	PCLATH,1
+		BSF	PCLATH,0
+		ADDWF	PCL,F		
+		DT " 3",0		;0 is an indicator for end of string
+
+Z10MESSAGE	CLRF	LOOP		;clear loop
+		BSF	RSLINE,4
+		CLRF	PCLATH		;set RS for data send
+ZMS10		MOVF	LOOP,W		;get table address
+		CALL	MSGZ10		;get message letter
+		XORLW	0X00		;0x00 is the indicator for last data
+		BTFSC	STATUS,Z	;has last LCD letter been sent?
+		GOTO	MZ10		;YES, so end the DATA SEND routine
+		CALL	LCDOUT		;No, send the data to LCD for display
+		INCF	LOOP,F		;inc loop
+		GOTO	ZMS10		;repeat for next one letter
+MZ10		RETURN	
+MSGZ10		BSF 	PCLATH,1
+		BSF	PCLATH,0
+		ADDWF	PCL,F		
+		DT " 4",0		;0 is an indicator for end of string
+
+
+		END
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
