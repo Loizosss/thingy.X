@@ -1,0 +1,1774 @@
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Warning[205]: Found directive in column 1. (LIST)
+                      00001 LIST    P=16F877
+Warning[205]: Found directive in column 1. (INCLUDE)
+                      00002 INCLUDE "P16F877.INC"
+                      00001         LIST
+                      00002 
+                      00003 ;==========================================================================
+                      00004 ; Build date : Jan 30 2017
+                      00005 ;  MPASM PIC16F877 processor include
+                      00006 ; 
+                      00007 ;  (c) Copyright 1999-2017 Microchip Technology, All rights reserved
+                      00008 ;==========================================================================
+                      00009 
+Message[301]: MESSAGE: (Processor-header file mismatch.  Verify selected processor.)
+                      00541         LIST
+                      00003 
+                      00004 ; LCD Parameters
+  00000020            00005 LOOP    EQU     H'20'           ;loop counter 1 - general
+  00000021            00006 LOOPA   EQU     H'21'           ;loop counter 2 - LCD use only
+  00000049            00007 LOOPB   EQU     H'49'
+  00000022            00008 CLKCNT  EQU     H'22'           ;125 secs counter
+  00000023            00009 STORE   EQU     H'23'           ;general store
+  00000024            00010 RSLINE  EQU     H'24'           ;bit 4 RS line flag for LCD
+  00000027            00011 PWD1    EQU     H'27'           ;storing the password 1st char
+  00000028            00012 PWD2    EQU     H'28'           ;storing the password 2nd char
+  00000029            00013 PWD3    EQU     H'29'           ;storing the password 3rd char
+  00000030            00014 PWD4    EQU     H'30'           ;storing the password 4th char
+  00000031            00015 APWD1   EQU     H'31'
+  00000032            00016 APWD2   EQU     H'32'
+  00000033            00017 APWD3   EQU     H'33'
+  00000034            00018 APWD4   EQU     H'34'
+  00000035            00019 TEMPXOR EQU     H'35'
+  00000036            00020 TEMP1   EQU     H'36'
+  00000037            00021 CONFIRM EQU     H'37'
+  00000038            00022 MENKEY  EQU     H'38'
+  00000039            00023 MENU1   EQU     H'39'
+  00000040            00024 MENU2   EQU     H'40'
+  0000004A            00025 MENU3   EQU     H'4A'
+  00000041            00026 YES     EQU     H'41'
+  00000042            00027 NO      EQU     H'42'
+  00000043            00028 YESORNO EQU     H'43'
+  00000044            00029 ZONECHK EQU     H'44'
+  00000045            00030 ZONE1   EQU     H'45'
+  00000046            00031 ZONE2   EQU     H'46'
+  00000047            00032 ZONE3   EQU     H'47'
+  00000048            00033 ZONE4   EQU     H'48'
+  00000007            00034 PORTC   EQU     H'07'
+                      00035 
+  0000004B            00036 ARM     EQU     H'4B'
+  00000000            00037 DATA_EE_ADDR    EQU     H'00'
+  00000005            00038 DATA_EE_DATA    EQU     H'05'
+  0000004C            00039 FLAG    EQU     H'4C'
+                      00040 ;Bit0:password confirm 
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00041 ;Bit1:trigger
+                      00042 
+                      00043 ;Keypad Parameters
+  00000025            00044 KEY             EQU     H'25'           ;Count of keys
+  00000026            00045 LOOP1           EQU     H'26'
+                      00046 
+0000                  00047                 ORG     0x00
+0000   2801           00048                 GOTO    START
+                      00049 
+0001                  00050 START   
+0001   1683 1303      00051                 BANKSEL TRISB
+                      00052         
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0003   0186           00053                 CLRF    TRISB           ;Port B0-B7 as output
+                      00054 
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0004   0187           00055                 CLRF    TRISC
+                      00056 
+                      00057 
+0005   30F0           00058                 MOVLW   B'11110000'     ;Port D0-D3 as output and D4-D7 as input
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0006   0088           00059                 MOVWF   TRISD
+                      00060 
+0007   30FF           00061                 MOVLW   B'11111111'
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0008   0085           00062                 MOVWF   TRISA
+                      00063 
+0009   3006           00064                 MOVLW   B'00000110'     ;set timer ratio 1:128
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+000A   0081           00065                 MOVWF   OPTION_REG              
+                      00066                 
+000B   1283 1303      00067                 BANKSEL PORTB
+000D   2020           00068                 CALL    DEFAUTPWD
+000E   20D7           00069                 CALL    INITZONE
+                      00070 
+                      00071                 
+000F   218C           00072 MAIN            CALL    LCDSET          ;Configure the LCD display
+0010   219A           00073                 CALL    LCDMSG
+0011   30C0           00074                 MOVLW   H'C0'
+0012   21B8           00075                 CALL    LCDCMD
+                      00076 
+                      00077                 ;BTFSC   ARM, 1
+                      00078                 ;CALL   ZONECHECK       ;Scan set zones if triggered
+                      00079                 ;BTFSC   FLAG, 1                ;IF THE ALARM IS TRIGERED
+                      00080                 ;CALL   INFINEDBUZZER   ;With Return
+                      00081                 
+0013   1C4C           00082                 BTFSS   FLAG, 0
+0014   2029           00083                 CALL    CHKPWD
+0015   218C           00084                 CALL    LCDSET
+                      00085                 
+0016   184C           00086                 BTFSC   FLAG, 0         ;if password correct  
+0017   10CC           00087                 BCF     FLAG, 1         ;Stop the alarm
+                      00088                                         ;Else
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0018   184C           00089                 BTFSC   FLAG, 0         ;if password correct 
+0019   204F           00090                 CALL    MENU            ;Set the menu
+                      00091                                         ;else
+001A   216C           00092                 CALL    ERRMSG          ;Show error message, delay 10000ms
+                      00093                 ;CALL   BUZZ            ;(buzzer doesnt have to be activade if wronk password)
+                      00094                 
+                      00095         
+001B   280F           00096                 GOTO    MAIN
+                      00097 
+                      00098 
+                      00099 
+                      00100 ;------------------------------------------------
+001C   1987           00101 NAYE            BTFSC   PORTC,3         ;Doesn't make any sense
+001D   20F6           00102                 CALL    BUZZ
+001E   281C           00103                 GOTO    NAYE 
+001F   0008           00104                 RETURN 
+                      00105 ;-----------------------------------------------
+                      00106 
+                      00107 
+                      00108 
+                      00109 
+                      00110 ;Password Check
+                      00111 ;----------------------------------------------
+0020   3038           00112 DEFAUTPWD       MOVLW   H'38'
+0021   00A7           00113                 MOVWF   PWD1
+                      00114         
+0022   3038           00115                 MOVLW   H'38'
+0023   00A8           00116                 MOVWF   PWD2
+                      00117         
+0024   3038           00118                 MOVLW   H'38'
+0025   00A9           00119                 MOVWF   PWD3
+                      00120                 
+0026   3038           00121                 MOVLW   H'38'
+0027   00B0           00122                 MOVWF   PWD4    
+0028   0008           00123                 RETURN
+                      00124                         
+0029   21DB           00125 CHKPWD          CALL    GETKEY
+002A   00B1           00126                 MOVWF   APWD1
+002B   21B5           00127                 CALL    LCDDATA
+                      00128                 
+002C   21DB           00129                 CALL    GETKEY
+002D   00B2           00130                 MOVWF   APWD2
+002E   21B5           00131                 CALL    LCDDATA
+                      00132 
+002F   21DB           00133                 CALL    GETKEY
+0030   00B3           00134                 MOVWF   APWD3
+0031   21B5           00135                 CALL    LCDDATA
+                      00136                 
+0032   21DB           00137                 CALL    GETKEY
+0033   00B4           00138                 MOVWF   APWD4
+0034   21B5           00139                 CALL    LCDDATA
+                      00140 
+0035   104C           00141                 BCF     FLAG, 0
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00142                 
+0036   0827           00143                 MOVFW   PWD1    ;TEST1
+Message[305]: Using default destination of 1 (file).
+0037   06B1           00144                 XORWF   APWD1
+0038   00B5           00145                 MOVWF   TEMPXOR
+0039   1D03           00146                 BTFSS   STATUS, Z
+003A   0008           00147                 RETURN
+003B   0828           00148                 MOVFW   PWD2    ;TEST2
+Message[305]: Using default destination of 1 (file).
+003C   06B2           00149                 XORWF   APWD2
+003D   00B5           00150                 MOVWF   TEMPXOR
+003E   1D03           00151                 BTFSS   STATUS, Z
+003F   0008           00152                 RETURN
+0040   0829           00153                 MOVFW   PWD3    ;TEST3
+Message[305]: Using default destination of 1 (file).
+0041   06B3           00154                 XORWF   APWD3
+0042   00B5           00155                 MOVWF   TEMPXOR
+0043   1D03           00156                 BTFSS   STATUS, Z
+0044   0008           00157                 RETURN  
+0045   0830           00158                 MOVFW   PWD4    ;TEST4
+Message[305]: Using default destination of 1 (file).
+0046   06B4           00159                 XORWF   APWD4
+0047   00B5           00160                 MOVWF   TEMPXOR
+0048   1D03           00161                 BTFSS   STATUS, Z
+0049   0008           00162                 RETURN
+004A   218C           00163                 CALL    LCDSET
+004B   214D           00164                 CALL    CONFMSG
+004C   218C           00165                 CALL    LCDSET
+004D   144C           00166                 BSF     FLAG, 0
+004E   0008           00167                 RETURN
+                      00168 ;----------------------------------------------
+                      00169                 
+                      00170                 
+                      00171 ;Menu stuff             
+                      00172 ;-----------------------------------------------
+                      00173 ;-----------------------------------------------
+004F   10CB           00174 MENU            BCF     ARM, 1  
+0050   2062           00175                 CALL    SETMENV
+0051   2113           00176                 CALL    SETMSG 
+0052   30C0           00177                 MOVLW   H'C0'
+0053   21B8           00178                 CALL    LCDCMD
+0054   212E           00179                 CALL    ZONEMSG
+                      00180                 ;CALL   CHKMEN
+                      00181                 ;RETURN
+                      00182 
+0055                  00183 CHKMEN          ;CALL   SETMENV         ;CHECK MENU BUTTONS 
+0055   21DB           00184                 CALL    GETKEY
+0056   00B8           00185                 MOVWF   MENKEY
+                      00186                 
+0057   0838           00187                 MOVFW   MENKEY  
+Message[305]: Using default destination of 1 (file).
+0058   06B9           00188                 XORWF   MENU1
+0059   1903           00189                 BTFSC   STATUS, Z
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+005A   2069           00190                 CALL    SETPWD 
+Message[305]: Using default destination of 1 (file).
+005B   06C0           00191                 XORWF   MENU2
+005C   1903           00192                 BTFSC   STATUS, Z
+005D   207E           00193                 CALL    ZONMEN
+Message[305]: Using default destination of 1 (file).
+005E   06CA           00194                 XORWF   MENU3
+005F   1903           00195                 BTFSC   STATUS, Z
+0060   200F           00196                 CALL    MAIN
+0061   2855           00197                 GOTO    CHKMEN
+                      00198                 
+0062   3031           00199 SETMENV         MOVLW   H'31'
+0063   00B9           00200                 MOVWF   MENU1
+                      00201                 
+0064   3032           00202                 MOVLW   H'32'
+0065   00C0           00203                 MOVWF   MENU2
+                      00204                 
+0066   3033           00205                 MOVLW   H'33'
+0067   00CA           00206                 MOVWF   MENU3
+0068   0008           00207                 RETURN
+                      00208 ;-----------------------------------------------
+                      00209                 
+                      00210                 
+                      00211 ;Password Set   
+                      00212 ;----------------------------------------------
+0069   218C           00213 SETPWD          CALL    LCDSET
+006A   20F9           00214                 CALL    SETPWDMSG
+006B   206D           00215                 CALL    SUBSETPWD
+006C   200F           00216                 CALL    MAIN
+                      00217                         
+006D   30C0           00218 SUBSETPWD       MOVLW   H'C0'
+006E   21B8           00219                 CALL    LCDCMD
+                      00220                 
+006F   21DB           00221                 CALL    GETKEY
+0070   00A7           00222                 MOVWF   PWD1
+0071   21B5           00223                 CALL    LCDDATA
+                      00224                 
+0072   21DB           00225                 CALL    GETKEY
+0073   00A8           00226                 MOVWF   PWD2
+0074   21B5           00227                 CALL    LCDDATA
+                      00228 
+0075   21DB           00229                 CALL    GETKEY
+0076   00A9           00230                 MOVWF   PWD3
+0077   21B5           00231                 CALL    LCDDATA
+                      00232                 
+0078   21DB           00233                 CALL    GETKEY
+0079   00B0           00234                 MOVWF   PWD4
+007A   21B5           00235                 CALL    LCDDATA
+                      00236                 
+007B   218C           00237                 CALL    LCDSET
+007C   214D           00238                 CALL    CONFMSG
+007D   0008           00239                 RETURN
+                      00240 ;---------------------------------------------
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00241                 
+                      00242                 
+                      00243 ;Zone menu
+                      00244 ;-------------------------------------------------------------------
+007E   2062           00245 ZONMEN          CALL    SETMENV
+007F   218C           00246                 CALL    LCDSET
+0080   208F           00247                 CALL    SLTZONEMSG
+0081   30C0           00248                 MOVLW   H'C0'
+0082   21B8           00249                 CALL    LCDCMD
+0083   20AA           00250                 CALL    SHWZONEMSG
+                      00251 
+0084   2062           00252 CHKZONMEN       CALL    SETMENV
+0085   21DB           00253                 CALL    GETKEY
+0086   00B8           00254                 MOVWF   MENKEY
+0087   0838           00255                 MOVFW   MENKEY  
+Message[305]: Using default destination of 1 (file).
+0088   06B9           00256                 XORWF   MENU1
+0089   1903           00257                 BTFSC   STATUS, Z
+008A   20C3           00258                 CALL    SELECTZONE
+Message[305]: Using default destination of 1 (file).
+008B   06C0           00259                 XORWF   MENU2
+008C   1903           00260                 BTFSC   STATUS, Z
+008D   22D1           00261                 CALL    SHOWZONES
+008E   2855           00262                 GOTO    CHKMEN
+                      00263 
+                      00264                 
+                      00265 ;1-Select Zone message
+008F   01A0           00266 SLTZONEMSG      CLRF    LOOP            ;clear loop
+0090   1624           00267                 BSF     RSLINE,4        ;set RS for data send
+0091   018A           00268                 CLRF    PCLATH          ; SOLVING THE PROBLEM
+0092   0820           00269 SLTZONEMSG2     MOVF    LOOP,W          ;get table address
+0093   209B           00270                 CALL    MSGSLTZONE      ;get message letter
+0094   3A00           00271                 XORLW   0X00            ;0x00 is the indicator for last data
+0095   1903           00272                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0096   289A           00273                 GOTO    MSGSLTZONE1     ;YES, so end the DATA SEND routine
+0097   21A5           00274                 CALL    LCDOUT          ;No, send the data to LCD for display
+0098   0AA0           00275                 INCF    LOOP,F          ;inc loop
+0099   2892           00276                 GOTO    SLTZONEMSG2     ;repeat for next one letter
+009A   0008           00277 MSGSLTZONE1     RETURN  
+009B   0782           00278 MSGSLTZONE      ADDWF   PCL,F           
+009C   3431 342D 3453 00279                 DT "1-Select ZONE",0    ;0 is an indicator for end of string
+       3465 346C 3465 
+       3463 3474 3420 
+       345A 344F 344E 
+       3445 3400 
+                      00280 
+                      00281                 
+                      00282 ;2-Show Zone message
+00AA   01A0           00283 SHWZONEMSG      CLRF    LOOP            ;clear loop
+00AB   1624           00284                 BSF     RSLINE,4        ;set RS for data send
+00AC   018A           00285                 CLRF    PCLATH          ; SOLVING THE PROBLEM
+00AD   0820           00286 SHWZONEMSG2     MOVF    LOOP,W          ;get table address
+00AE   20B6           00287                 CALL    MSGSHWZONE      ;get message letter
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+00AF   3A00           00288                 XORLW   0X00            ;0x00 is the indicator for last data
+00B0   1903           00289                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+00B1   28B5           00290                 GOTO    MSGSHWZONE1     ;YES, so end the DATA SEND routine
+00B2   21A5           00291                 CALL    LCDOUT          ;No, send the data to LCD for display
+00B3   0AA0           00292                 INCF    LOOP,F          ;inc loop
+00B4   28AD           00293                 GOTO    SHWZONEMSG2     ;repeat for next one letter
+00B5   0008           00294 MSGSHWZONE1     RETURN  
+00B6   0782           00295 MSGSHWZONE      ADDWF   PCL,F           
+00B7   3432 342D 3453 00296                 DT "2-Show ZONE",0      ;0 is an indicator for end of string
+       3468 346F 3477 
+       3420 345A 344F 
+       344E 3445 3400 
+                      00297                 
+                      00298 ;Zone select
+00C3   218C           00299 SELECTZONE      CALL    LCDSET
+00C4   2224           00300                 CALL    Z1MESSAGE               ;show zone1
+00C5   22AC           00301                 CALL    ZONECHECK
+00C6   22C5           00302                 CALL    ZONE10  
+00C7   218C           00303                 CALL    LCDSET
+00C8   223F           00304                 CALL    Z2MESSAGE
+00C9   22AC           00305                 CALL    ZONECHECK
+00CA   22C8           00306                 CALL    ZONE20  
+00CB   218C           00307                 CALL    LCDSET
+00CC   225B           00308                 CALL    Z3MESSAGE
+00CD   22AC           00309                 CALL    ZONECHECK
+00CE   22CB           00310                 CALL    ZONE30  
+00CF   218C           00311                 CALL    LCDSET                          
+00D0   2277           00312                 CALL    Z4MESSAGE
+00D1   22AC           00313                 CALL    ZONECHECK
+00D2   22CE           00314                 CALL    ZONE40
+00D3   218C           00315                 CALL    LCDSET
+                      00316                 ;CALL SHOWZONES 
+00D4   144C           00317                 BSF     FLAG, 0
+00D5   200F           00318                 CALL    MAIN            ;go to back to main
+00D6   0008           00319                 RETURN
+                      00320 ;-----------------------------------------------
+                      00321 ;-----------------------------------------------                
+                      00322                 
+                      00323 
+                      00324 
+                      00325                 
+                      00326                 
+                      00327                 
+00D7   1045           00328 INITZONE        BCF     ZONE1,0
+00D8   1046           00329                 BCF     ZONE2,0
+00D9   1047           00330                 BCF     ZONE3,0
+00DA   1048           00331                 BCF     ZONE4,0
+00DB   0008           00332                 RETURN
+                      00333 
+                      00334 
+                      00335 
+                      00336 
+                      00337 
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00338 
+                      00339 
+                      00340 
+                      00341                 
+                      00342 
+                      00343 
+                      00344                 
+                      00345 
+                      00346 ;Enter Zone message
+                      00347 ;------------------------------------------------               
+                      00348                 
+00DC   01A0           00349 SLTZMSG         CLRF    LOOP            ;clear loop
+00DD   1624           00350                 BSF     RSLINE,4        ;set RS for data send
+00DE   0820           00351 SLTZMS2         MOVF    LOOP,W          ;get table address
+00DF   140A           00352                 BSF     PCLATH,0
+00E0   20E9           00353                 CALL    MSGSLTZ         ;get message letter
+00E1   3A00           00354                 XORLW   0X00            ;0x00 is the indicator for last data
+00E2   1903           00355                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+00E3   28E7           00356                 GOTO    MSGSLTZ1        ;YES, so end the DATA SEND routine
+00E4   21A5           00357                 CALL    LCDOUT          ;No, send the data to LCD for display
+00E5   0AA0           00358                 INCF    LOOP,F          ;inc loop
+00E6   28DE           00359                 GOTO    SLTZMS2
+00E7   018A           00360 MSGSLTZ1        CLRF    PCLATH          ;repeat for next one letter
+00E8   0008           00361                 RETURN  
+00E9   0782           00362 MSGSLTZ         ADDWF   PCL,F           
+00EA   3445 344E 3454 00363                 DT "ENTER ZONE:",0      ;0 is an indicator for end of string    
+       3445 3452 3420 
+       345A 344F 344E 
+       3445 343A 3400 
+                      00364 
+                      00365                 
+                      00366 ;Buzzer loop  *needs loop 
+                      00367 ;-----------------------------------------------------------------
+Warning[202]: Argument out of range.  Least significant bits used.
+00F6   30FF           00368 BUZZ            MOVLW   H'FFFF'
+00F7   00C9           00369                 MOVWF   LOOPB
+                      00370 ;DELAYB         BSF     PORTC, 1
+                      00371 ;               CALL    PAUSBB
+                      00372 ;               BCF     PORTC, 1
+                      00373 ;               CALL    PAUSBB
+                      00374 ;               DECFSZ  LOOPB, 1
+                      00375 ;;              GOTO    DELAYB
+                      00376 ;               RETURN
+                      00377 ;       
+                      00378 ;PAUSBB         MOVLW   H'FF'           ;set minimum time between sending full bytes to
+                      00379 ;               MOVWF   LOOP            ;LCD - value of 250 seems OK for this prog with
+                      00380 ;DELAYKK        DECFSZ  LOOP,F          ;XTAL clk of upto 20MHz
+                      00381 ;               GOTO    DELAYKK         ;keep decrementing LOOPA until zero
+00F8   0008           00382                 RETURN  
+                      00383                 
+                      00384 
+                      00385 
+                      00386                 
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE  9
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00387 
+                      00388 
+                      00389                 
+                      00390                 
+                      00391 ;Set New Password message
+                      00392 ;---------------------------------------------------
+00F9   01A0           00393 SETPWDMSG       CLRF    LOOP            ;clear loop
+00FA   1624           00394                 BSF     RSLINE,4        ;set RS for data send
+00FB   018A           00395                 CLRF    PCLATH          ; SOLVING THE PROBLEM
+00FC   0820           00396 SETPWDMSG2      MOVF    LOOP,W          ;get table address
+00FD   2105           00397                 CALL    MSGSETPWD       ;get message letter
+00FE   3A00           00398                 XORLW   0X00            ;0x00 is the indicator for last data
+00FF   1903           00399                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0100   2904           00400                 GOTO    MSGSETPWD1      ;YES, so end the DATA SEND routine
+0101   21A5           00401                 CALL    LCDOUT          ;No, send the data to LCD for display
+0102   0AA0           00402                 INCF    LOOP,F          ;inc loop
+0103   28FC           00403                 GOTO    SETPWDMSG2      ;repeat for next one letter
+0104   0008           00404 MSGSETPWD1      RETURN  
+0105   0782           00405 MSGSETPWD       ADDWF   PCL,F           
+0106   3453 3445 3454 00406                 DT "SET NEW PWD:",0     ;0 is an indicator for end of string
+       3420 344E 3445 
+       3457 3420 3450 
+       3457 3444 343A 
+       3400 
+                      00407 
+                      00408                 
+                      00409 ;1-Change Password  message
+                      00410 ;--------------------------------------------------
+0113   01A0           00411 SETMSG          CLRF    LOOP            ;clear loop
+0114   1624           00412                 BSF     RSLINE,4        ;set RS for data send
+0115   140A           00413                 BSF     PCLATH,0        ; SOLVING THE PROBLEM
+0116   0820           00414 SETMS2          MOVF    LOOP,W          ;get table address
+0117   2120           00415                 CALL    MSGSET          ;get message letter
+0118   3A00           00416                 XORLW   0X00            ;0x00 is the indicator for last data
+0119   1903           00417                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+011A   291E           00418                 GOTO    MSGSET1         ;YES, so end the DATA SEND routine
+011B   21A5           00419                 CALL    LCDOUT          ;No, send the data to LCD for display
+011C   0AA0           00420                 INCF    LOOP,F          ;inc loop
+011D   2916           00421                 GOTO    SETMS2          ;repeat for next one letter
+011E   018A           00422 MSGSET1         CLRF    PCLATH
+011F   0008           00423                 RETURN
+0120   0782           00424 MSGSET          ADDWF   PCL,F           
+0121   3431 342D 3443 00425                 DT "1-CHANGE PWD",0     ;0 is an indicator for end of string
+       3448 3441 344E 
+       3447 3445 3420 
+       3450 3457 3444 
+       3400 
+                      00426                 
+                      00427                 
+                      00428 ;2-st zone 3-exit  message
+                      00429 ;--------------------------------------------------------
+012E   01A0           00430 ZONEMSG         CLRF    LOOP            ;clear loop
+012F   1624           00431                 BSF     RSLINE,4
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 10
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0130   140A           00432                 BSF     PCLATH,0        ;set RS for data send
+0131   0820           00433 ZONEMS2         MOVF    LOOP,W          ;get table address
+0132   213B           00434                 CALL    MSGZONE         ;get message letter
+0133   3A00           00435                 XORLW   0X00            ;0x00 is the indicator for last data
+0134   1903           00436                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0135   2939           00437                 GOTO    MSGZONE1        ;YES, so end the DATA SEND routine
+0136   21A5           00438                 CALL    LCDOUT          ;No, send the data to LCD for display
+0137   0AA0           00439                 INCF    LOOP,F          ;inc loop
+0138   2931           00440                 GOTO    ZONEMS2         ;repeat for next one letter
+0139   018A           00441 MSGZONE1        CLRF    PCLATH
+013A   0008           00442                 RETURN  
+013B   0782           00443 MSGZONE         ADDWF   PCL,F           
+013C   3432 342D 3453 00444                 DT "2-ST ZONE|3-EXIT",0 ;0 is an indicator for end of string
+       3454 3420 345A 
+       344F 344E 3445 
+       347C 3433 342D 
+       3445 3458 3449 
+       3454 3400 
+                      00445 ;------------------------------------------------------------
+                      00446 ;SHWZOMSG       CLRF    LOOP            ;clear loop
+                      00447 ;               BSF     RSLINE,4
+                      00448 ;               CLRF    PCLATH          ;set RS for data send
+                      00449 ;SHWZOMS2       MOVF    LOOP,W          ;get table address
+                      00450 ;               CALL    MSGSHWZO        ;get message letter
+                      00451 ;               XORLW   0X00            ;0x00 is the indicator for last data
+                      00452 ;               BTFSC   STATUS,Z        ;has last LCD letter been sent?
+                      00453 ;               GOTO    MSGSHWZO1       ;YES, so end the DATA SEND routine
+                      00454 ;               CALL    LCDOUT          ;No, send the data to LCD for display
+                      00455 ;               INCF    LOOP,F          ;inc loop
+                      00456 ;               GOTO    SHWZOMS2        ;repeat for next one letter
+                      00457 ;MSGSHWZO1      RETURN  
+                      00458 ;MSGSHWZO       ADDWF   PCL,F           
+                      00459 ;               DT "ZONE TRIGGERED:",0  ;0 is an indicator for end of string
+                      00460 
+                      00461                 
+                      00462 ;password confirm
+                      00463 ;-------------------------------------------------------------------
+                      00464 ;sub-routine to send a string of alphanumeric letter to LCD module                              
+014D   01A0           00465 CONFMSG         CLRF    LOOP            ;clear loop     
+014E   1624           00466                 BSF     RSLINE,4        ;set RS for data send
+014F   0820           00467 CONFMS2         MOVF    LOOP,W          ;get table address
+0150   140A           00468                 BSF     PCLATH,0
+0151   215A           00469                 CALL    MSGCONF         ;get message letter
+0152   3A00           00470                 XORLW   0X00            ;0x00 is the indicator for last data
+0153   1903           00471                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0154   2958           00472                 GOTO    MSGEND1         ;YES, so end the DATA SEND routine
+0155   21A5           00473                 CALL    LCDOUT          ;No, send the data to LCD for display
+0156   0AA0           00474                 INCF    LOOP,F          ;inc loop
+0157   294F           00475                 GOTO    CONFMS2
+0158   018A           00476 MSGEND1         CLRF    PCLATH          ;repeat for next one letter
+0159   0008           00477                 RETURN  
+015A   0782           00478 MSGCONF         ADDWF   PCL,F           
+015B   3450 3441 3453 00479                 DT "PASSWD CONFIRMED",0 ;0 is an indicator for end of string
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 11
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+       3453 3457 3444 
+       3420 3443 344F 
+       344E 3446 3449 
+       3452 344D 3445 
+       3444 3400 
+                      00480 
+                      00481 ;sub-routine to send a string of alphanumeric letter to LCD module                              
+016C   01A0           00482 ERRMSG          CLRF    LOOP            ;clear loop
+016D   20F6           00483                 CALL    BUZZ
+016E   1624           00484                 BSF     RSLINE,4
+016F   140A           00485                 BSF PCLATH,0    
+0170   0820           00486 ERRMS2          MOVF    LOOP,W          ;get table address
+0171   217A           00487                 CALL    MSGERR          ;get message letter
+0172   3A00           00488                 XORLW   0X00            ;0x00 is the indicator for last data
+0173   1903           00489                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0174   2978           00490                 GOTO    MSGEND2         ;YES, so end the DATA SEND routine
+0175   21A5           00491                 CALL    LCDOUT          ;No, send the data to LCD for display
+0176   0AA0           00492                 INCF    LOOP,F          ;inc loop
+0177   2970           00493                 GOTO    ERRMS2          ;repeat for next one letter
+0178   018A           00494 MSGEND2         CLRF    PCLATH
+0179   0008           00495                 RETURN  
+017A   0782           00496 MSGERR          ADDWF   PCL,F           
+017B   3449 346E 3463 00497                 DT "Incorect!!!",0      ;0 is an indicator for end of string
+       346F 3472 3465 
+       3463 3474 3421 
+       3421 3421 3400 
+0187   30FA           00498 PAUS            MOVLW   D'250'          ;set minimum time between sending full bytes to
+0188   00A0           00499                 MOVWF   LOOP            ;LCD - value of 250 seems OK for this prog with
+0189   0BA0           00500 DELAY1          DECFSZ  LOOP,F          ;XTAL clk of upto 20MHz
+018A   2989           00501                 GOTO    DELAY1          ;keep decrementing LOOPA until zero
+018B   0008           00502                 RETURN          
+                      00503 
+                      00504 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                      00505 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                      00506 
+                      00507 ;sub-routine to send a string of LCD command to LCD module
+018C   21BB           00508 LCDSET          CALL    PAUSIT
+018D   01A0           00509                 CLRF    LOOP            ;clr LCD set-up loop
+018E   01A4           00510                 CLRF    RSLINE          ;clear RS line for instruction send
+018F   140A           00511 LCDST2          BSF     PCLATH, 0       ;;;;;;;;;;;;;;;;;;;;;;;;TO FIX PAGING PROBLEM
+0190   0820           00512                 MOVF    LOOP,W          ;get table address
+0191   21C4           00513                 CALL    TABLCD          ;get set-up instruction
+0192   3A00           00514                 XORLW   0X00            ;0x00 is the indicator for last LCD instruction
+0193   1903           00515                 BTFSC   STATUS,Z        ;has last LCD set-up instruction now been done?
+0194   2998           00516                 GOTO    SETEND          ;YES, so end the LCD SET routine
+0195   21A5           00517                 CALL    LCDOUT          ;No, send the instruction to LCD
+0196   0AA0           00518                 INCF    LOOP,F          ;inc loop
+0197   298F           00519                 GOTO    LCDST2          ;get the next set-up instruction
+0198   21BB           00520 SETEND          CALL    PAUSIT          ;perform second 1/5th sec delay
+0199   0008           00521                 RETURN                  ;to allow final LCD command to occur
+                      00522                                         ;(it takes longer than the rest)
+                      00523 
+                      00524 ;sub-routine to send a string of alphanumeric letter to LCD module                              
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 12
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+019A   01A0           00525 LCDMSG          CLRF    LOOP            ;clear loop
+019B   1624           00526                 BSF     RSLINE,4        ;set RS for data send
+019C   0820           00527 LCDMS2          MOVF    LOOP,W          ;get table address
+019D   21CA           00528                 CALL    MESSAG          ;get message letter
+019E   3A00           00529                 XORLW   0X00            ;0x00 is the indicator for last data
+019F   1903           00530                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+01A0   29A4           00531                 GOTO    MSGEND          ;YES, so end the DATA SEND routine
+01A1   21A5           00532                 CALL    LCDOUT          ;No, send the data to LCD for display
+01A2   0AA0           00533                 INCF    LOOP,F          ;inc loop
+01A3   299C           00534                 GOTO    LCDMS2          ;repeat for next one letter
+01A4   0008           00535 MSGEND          RETURN                          
+                      00536 
+                      00537 ;sub-routine to send one byte data to LCD (which can be a command or alphanumeric letter
+01A5   00A3           00538 LCDOUT          MOVWF   STORE           ;temp store data
+01A6   30FA           00539                 MOVLW   D'250'          ;set minimum time between sending full bytes to
+01A7   00A1           00540                 MOVWF   LOOPA           ;LCD - value of 250 seems OK for this prog with
+01A8   0BA1           00541 DELAY           DECFSZ  LOOPA,F         ;XTAL clk of upto 20MHz
+01A9   29A8           00542                 GOTO    DELAY           ;keep decrementing LOOPA until zero
+01AA   21AD           00543                 CALL    SENDIT          ;send MSB
+01AB   21AD           00544                 CALL    SENDIT          ;send LSB
+01AC   0008           00545                 RETURN          
+                      00546 
+                      00547 ;used by LCDOUT to send a 4-bit of one byte data to LCD
+01AD   0EA3           00548 SENDIT          SWAPF   STORE,F         ;swap data nibbles
+01AE   0823           00549                 MOVF    STORE,W         ;get data byte
+01AF   390F           00550                 ANDLW   H'0F'           ;get nibble from byte (LSB)
+01B0   0424           00551                 IORWF   RSLINE,W        ;OR the RS bit
+01B1   0086           00552                 MOVWF   PORTB           ;output the byte
+01B2   1686           00553                 BSF     PORTB,5         ;set E line high
+01B3   1286           00554                 BCF     PORTB,5         ;set E line low
+01B4   0008           00555                 RETURN                  
+                      00556 
+                      00557 ;sub-routine to send an alphanumeric letter in W register to LCD module
+01B5   1624           00558 LCDDATA         BSF     RSLINE,4        ;set RS=1. This will set the LCD to Data mode
+01B6   21A5           00559                 CALL    LCDOUT
+01B7   0008           00560                 RETURN                  
+                      00561 
+                      00562 ;sub-routine to send a LCD command in W register to LCD module
+01B8   01A4           00563 LCDCMD          CLRF    RSLINE          ;set RS=0. This will set the LCD to Command mode
+01B9   21A5           00564                 CALL    LCDOUT
+01BA   0008           00565                 RETURN  
+                      00566 
+                      00567 ;delay subroutine                               
+01BB   3005           00568 PAUSIT          MOVLW   5               ;set delay counter to 30
+01BC   00A2           00569                 MOVWF   CLKCNT          ;(for 1/150th sec x 30)
+01BD   018B           00570                 CLRF    INTCON          ;clear interupt flag
+01BE   1D0B           00571 PAUSE           BTFSS   INTCON,2        ;initial 1/5th sec wait before setting up LCD has a timer time-o
+                            ut been detected?
+01BF   29BE           00572                 GOTO    PAUSE           ;no
+01C0   110B           00573                 BCF     INTCON,2        ;yes
+01C1   0BA2           00574                 DECFSZ  CLKCNT,F        ;dec counter, is it zero?
+01C2   29BE           00575                 GOTO    PAUSE           ;no
+01C3   0008           00576                 RETURN                  ;yes
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 13
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00577 
+                      00578 ;sub-routine which consists of a string of LCD command to be setup LCD module
+                      00579 ;0x00 is an indicator for end of string
+01C4   0782           00580 TABLCD          ADDWF   PCL,F           ;LCD initialisation table
+01C5   3428           00581                 RETLW   B'00101000'     ;Function Set: 4-bit operation and 2 lines
+01C6   340C           00582                 RETLW   B'00001100'     ;Display ON/OFF Control: set display on, cursor off, blink off
+01C7   3401           00583                 RETLW   B'00000001'     ;Clear Display
+01C8   3402           00584                 RETLW   B'00000010'     ;Return Home: Set cursor to home position
+01C9   3400           00585                 RETLW   0X00            ;End initialisation table
+                      00586 
+                      00587 ;sub-routine which consists of a string of alphanumeric letters to be displayed on LCD module
+                      00588 ;0x00 is an indicator for end of string
+01CA   0782           00589 MESSAG          ADDWF   PCL,F           
+01CB   3445 344E 3454 00590                 DT "ENTER PASSWORD:",0  ;0 is an indicator for end of string
+       3445 3452 3420 
+       3450 3441 3453 
+       3453 3457 344F 
+       3452 3444 343A 
+       3400 
+                      00591 
+                      00592 ;----Assembly language program for interfacing Matrix Keypad module----
+                      00593 
+                      00594 ;sub-routine to get a keypress from Matrix Keypad module
+                      00595 ;check the "column" of the Matrix Keypad
+01DB   0188           00596 GETKEY          CLRF    PORTD
+                      00597 
+01DC   1408           00598                 BSF     PORTD,0         ;Check Column1
+01DD   2201           00599                 CALL    KEY_COL1        ;Check if there is any keypress in Row A,B,C or D of Column1 and
+                             return a value for a corresponding key. 
+                      00600                                         ;If no keypress found, the subroutine will return 0xFF in W regi
+                            ter.
+01DE   00A5           00601                 MOVWF   KEY             ;Store the return value from W to KEY (a variable which key the 
+                            return keypress value).
+01DF   3AFF           00602                 XORLW   0XFF            ;Check if value in W is equal to 0xFF.
+01E0   1D03           00603                 BTFSS   STATUS,Z        ;Yes. This means the KEY_COL1 has returned a 0xFF in the W; ther
+                            efore no keypress detected.
+01E1   29EF           00604                 GOTO    FOUND1          ;No. A keypress is found from 
+                      00605         
+Message[305]: Using default destination of 1 (file).
+01E2   0D88           00606                 RLF     PORTD           ;Check Column2
+01E3   220B           00607                 CALL    KEY_COL2        ;Check if there is any keypress in Row A,B,C or D of Column2 and
+                             return a value for a corresponding key. 
+                      00608                                         ;If no keypress found, the subroutine will return 0xFF in W regi
+                            ter.
+01E4   00A5           00609                 MOVWF   KEY             ;Store the return value from W to KEY (a variable which key the 
+                            return keypress value).
+01E5   3AFF           00610                 XORLW   0XFF            ;Check if value in W is equal to 0xFF.
+01E6   1D03           00611                 BTFSS   STATUS,Z        ;Yes. This means the KEY_COL2 has returned a 0xFF in the W; ther
+                            efore no keypress detected.
+01E7   29F5           00612                 GOTO    FOUND2          ;No. A keypress is found from
+                      00613 
+Message[305]: Using default destination of 1 (file).
+01E8   0D88           00614                 RLF     PORTD           ;Check Column3
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 14
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+01E9   2215           00615                 CALL    KEY_COL3        ;Check if there is any keypress in Row A,B,C or D of Column2 and
+                             return a value for a corresponding key. 
+                      00616                                         ;If no keypress found, the subroutine will return 0xFF in W regi
+                            ter.
+01EA   00A5           00617                 MOVWF   KEY             ;Store the return value from W to KEY (a variable which key the 
+                            return keypress value)
+01EB   3AFF           00618                 XORLW   0XFF            ;Check if value in W is equal to 0xFF.
+01EC   1D03           00619                 BTFSS   STATUS,Z        ;Yes. This means the KEY_COL3 has returned a 0xFF in the W; ther
+                            efore no keypress detected.
+01ED   29FB           00620                 GOTO    FOUND3          ;No. A keypress is found from
+01EE   29DB           00621                 GOTO    GETKEY          ;Repeat the scanning non-stop
+                      00622 
+01EF   2201           00623 FOUND1          CALL    KEY_COL1        ;Check whether if any key in Column1 still being pressed. If no 
+                            key is pressed, a 0xFF will be returned in W.
+01F0   3AFF           00624                 XORLW   H'FF'           ;Check if W is equal to 0xFF
+01F1   1D03           00625                 BTFSS   STATUS,Z        ;Yes. This means the keypress is released by user.
+01F2   29EF           00626                 GOTO    FOUND1          ;No. This means the keypress is still hold by user. Goto FOUND1 
+                            and check again until user release the keypress.
+01F3   0825           00627                 MOVFW   KEY             ;Proceed when user release the keypress and move the KEY value i
+                            nto W.
+01F4   0008           00628                 RETURN                  ;Return to the main program with the detected keypress value (KE
+                            Y) in W.
+                      00629 
+01F5   220B           00630 FOUND2          CALL    KEY_COL2        ;Check whether if any key in Column2 still being pressed. If no 
+                            key is pressed, a 0xFF will be returned in W.
+01F6   3AFF           00631                 XORLW   H'FF'           ;Check if W is equal to 0xFF
+01F7   1D03           00632                 BTFSS   STATUS,Z        ;Yes. This means the keypress is released by user.
+01F8   29F5           00633                 GOTO    FOUND2          ;No. This means the keypress is still hold by user. Goto FOUND1 
+                            and check again until user release the keypress.
+01F9   0825           00634                 MOVFW   KEY             ;Proceed when user release the keypress and move the KEY value i
+                            nto W.
+01FA   0008           00635                 RETURN                  ;Return to the main program with the detected keypress value (KE
+                            Y) in W.
+                      00636         
+01FB   2215           00637 FOUND3          CALL    KEY_COL3        ;Check whether if any key in Column2 still being pressed. If no 
+                            key is pressed, a 0xFF will be returned in W.
+01FC   3AFF           00638                 XORLW   H'FF'           ;Check if W is equal to 0xFF
+01FD   1D03           00639                 BTFSS   STATUS,Z        ;Yes. This means the keypress is released by user.
+01FE   29FB           00640                 GOTO    FOUND3          ;No. This means the keypress is still hold by user. Goto FOUND1 
+                            and check again until user release the keypress.
+01FF   0825           00641                 MOVFW   KEY             ;Proceed when user release the keypress and move the KEY value i
+                            nto W.
+0200   0008           00642                 RETURN                  ;Return to the main program with the detected keypress value (KE
+                            Y) in W.
+                      00643         
+                      00644 ;check the "row" of the Matrix Keypad
+0201                  00645 KEY_COL1
+0201   221F           00646                 CALL    DEBOUNCE
+0202   1A08           00647                 BTFSC   PORTD,4         ;Check Row A of Column1
+0203   3431           00648                 RETLW   '1'             ;Return an ASCII for character '1' that is 0x31
+0204   1A88           00649                 BTFSC   PORTD,5         ;Check Row B of Column1
+0205   3434           00650                 RETLW   '4'             ;Return an ASCII for character '4' that is 0x34
+0206   1B08           00651                 BTFSC   PORTD,6         ;Check Row C of Column1
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 15
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0207   3437           00652                 RETLW   '7'             ;Return an ASCII for character '7' that is 0x37
+0208   1B88           00653                 BTFSC   PORTD,7         ;Check Row D of Column1
+0209   342A           00654                 RETLW   '*'             ;Return an ASCII for character '*' that is 0x2A
+020A   34FF           00655                 RETLW   0XFF    
+                      00656 
+020B                  00657 KEY_COL2
+020B   221F           00658                 CALL    DEBOUNCE
+020C   1A08           00659                 BTFSC   PORTD,4         ;Check Row D of Column2
+020D   3432           00660                 RETLW   '2'             ;Return an ASCII for character '2' that is 0x32
+020E   1A88           00661                 BTFSC   PORTD,5         ;Check Row D of Column2
+020F   3435           00662                 RETLW   '5'             ;Return an ASCII for character '1' that is 0x35
+0210   1B08           00663                 BTFSC   PORTD,6         ;Check Row D of Column2
+0211   3438           00664                 RETLW   '8'             ;Return an ASCII for character '1' that is 0x38
+0212   1B88           00665                 BTFSC   PORTD,7         ;Check Row D of Column2
+0213   3430           00666                 RETLW   '0'             ;Return an ASCII for character '1' that is 0x30
+0214   34FF           00667                 RETLW   0XFF    
+                      00668 
+0215                  00669 KEY_COL3
+0215   221F           00670                 CALL    DEBOUNCE
+0216   1A08           00671                 BTFSC   PORTD,4         ;Check Row D of Column3
+0217   3433           00672                 RETLW   '3'             ;Return an ASCII for character '1' that is 0x33
+0218   1A88           00673                 BTFSC   PORTD,5         ;Check Row D of Column3
+0219   3436           00674                 RETLW   '6'             ;Return an ASCII for character '1' that is 0x36
+021A   1B08           00675                 BTFSC   PORTD,6         ;Check Row D of Column3
+021B   3439           00676                 RETLW   '9'             ;Return an ASCII for character '1' that is 0x39
+021C   1B88           00677                 BTFSC   PORTD,7         ;Check Row D of Column3
+021D   3423           00678                 RETLW   '#'             ;Return an ASCII for character '1' that is 0x23
+021E   34FF           00679                 RETLW   0XFF    
+                      00680 
+                      00681 
+                      00682 
+                      00683 
+021F                  00684 DEBOUNCE                                ;A push button tends to create 
+021F   30FF           00685                 MOVLW   0XFF            ;unsettling signal when being pressed 
+0220   00A6           00686                 MOVWF   LOOP1           ;or released. Therefore, a small delay 
+Message[305]: Using default destination of 1 (file).
+0221   0BA6           00687 D_LOOP          DECFSZ  LOOP1           ;routine is created to bypass this 
+0222   2A21           00688                 GOTO    D_LOOP          ;unsettling signal.
+0223   0008           00689                 RETURN
+                      00690 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                      00691 
+                      00692 
+0224   01A0           00693 Z1MESSAGE       CLRF    LOOP            ;clear loop
+0225   1624           00694                 BSF     RSLINE,4
+0226   018A           00695                 CLRF    PCLATH  ;set RS for data send
+0227   0820           00696 ZMS1            MOVF    LOOP,W          ;get table address
+0228   2230           00697                 CALL    MSGZ1           ;get message letter
+0229   3A00           00698                 XORLW   0X00            ;0x00 is the indicator for last data
+022A   1903           00699                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+022B   2A2F           00700                 GOTO    MZ1             ;YES, so end the DATA SEND routine
+022C   21A5           00701                 CALL    LCDOUT          ;No, send the data to LCD for display
+022D   0AA0           00702                 INCF    LOOP,F          ;inc loop
+022E   2A27           00703                 GOTO    ZMS1            ;repeat for next one letter
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 16
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+022F   0008           00704 MZ1             RETURN  
+0230   148A           00705 MSGZ1           BSF     PCLATH,1
+0231   0782           00706                 ADDWF   PCL,F           
+0232   3441 3443 3454 00707                 DT "ACTIVATE Z1?",0     ;0 is an indicator for end of string
+       3449 3456 3441 
+       3454 3445 3420 
+       345A 3431 343F 
+       3400 
+                      00708 
+023F   01A0           00709 Z2MESSAGE       CLRF    LOOP            ;clear loop
+0240   1624           00710                 BSF     RSLINE,4
+0241   018A           00711                 CLRF    PCLATH          ;set RS for data send
+0242   0820           00712 ZMS2            MOVF    LOOP,W          ;get table address
+0243   224C           00713                 CALL    MSGZ2           ;get message letter
+0244   3A00           00714                 XORLW   0X00            ;0x00 is the indicator for last data
+0245   1903           00715                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0246   2A4A           00716                 GOTO    MZ2             ;YES, so end the DATA SEND routine
+0247   21A5           00717                 CALL    LCDOUT          ;No, send the data to LCD for display
+0248   0AA0           00718                 INCF    LOOP,F          ;inc loop
+0249   2A42           00719                 GOTO    ZMS2            ;repeat for next one letter
+024A   018A           00720 MZ2             CLRF    PCLATH
+024B   0008           00721                         RETURN  
+024C   148A           00722 MSGZ2           BSF     PCLATH,1
+024D   0782           00723                         ADDWF   PCL,F           
+024E   3441 3443 3454 00724                         DT "ACTIVATE Z2?",0     ;0 is an indicator for end of string
+       3449 3456 3441 
+       3454 3445 3420 
+       345A 3432 343F 
+       3400 
+                      00725 
+025B   01A0           00726 Z3MESSAGE       CLRF    LOOP            ;clear loop
+025C   1624           00727                 BSF     RSLINE,4
+025D   018A           00728                 CLRF    PCLATH          ;set RS for data send
+025E   0820           00729 ZMS3            MOVF    LOOP,W          ;get table address
+025F   2268           00730                 CALL    MSGZ3           ;get message letter
+0260   3A00           00731                 XORLW   0X00            ;0x00 is the indicator for last data
+0261   1903           00732                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0262   2A66           00733                 GOTO    MZ3             ;YES, so end the DATA SEND routine
+0263   21A5           00734                 CALL    LCDOUT          ;No, send the data to LCD for display
+0264   0AA0           00735                 INCF    LOOP,F          ;inc loop
+0265   2A5E           00736                 GOTO    ZMS3            ;repeat for next one letter
+0266   018A           00737 MZ3             CLRF    PCLATH
+0267   0008           00738                 RETURN  
+0268   148A           00739 MSGZ3           BSF     PCLATH,1
+0269   0782           00740                 ADDWF   PCL,F           
+026A   3441 3443 3454 00741                 DT "ACTIVATE Z3?",0     ;0 is an indicator for end of string
+       3449 3456 3441 
+       3454 3445 3420 
+       345A 3433 343F 
+       3400 
+                      00742 
+0277   01A0           00743 Z4MESSAGE       CLRF    LOOP            ;clear loop
+0278   1624           00744                 BSF     RSLINE,4
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 17
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0279   018A           00745                 CLRF    PCLATH          ;set RS for data send
+027A   0820           00746 ZMS4            MOVF    LOOP,W          ;get table address
+027B   2283           00747                 CALL    MSGZ4           ;get message letter
+027C   3A00           00748                 XORLW   0X00            ;0x00 is the indicator for last data
+027D   1903           00749                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+027E   2A82           00750                 GOTO    MZ4             ;YES, so end the DATA SEND routine
+027F   21A5           00751                 CALL    LCDOUT          ;No, send the data to LCD for display
+0280   0AA0           00752                 INCF    LOOP,F          ;inc loop
+0281   2A7A           00753                 GOTO    ZMS4            ;repeat for next one letter
+0282   0008           00754 MZ4             RETURN  
+0283   148A           00755 MSGZ4           BSF     PCLATH,1
+0284   0782           00756                 ADDWF   PCL,F           
+0285   3441 3443 3454 00757                 DT "ACTIVATE Z4?",0     ;0 is an indicator for end of string
+       3449 3456 3441 
+       3454 3445 3420 
+       345A 3434 343F 
+       3400 
+                      00758 
+0292   01A0           00759 Z5MESSAGE       CLRF    LOOP            ;clear loop
+0293   1624           00760                 BSF     RSLINE,4
+0294   148A           00761                 BSF     PCLATH,1        ;set RS for data send
+0295   0820           00762 ZMS5            MOVF    LOOP,W          ;get table address
+0296   229F           00763                 CALL    MSGZ5           ;get message letter
+0297   3A00           00764                 XORLW   0X00            ;0x00 is the indicator for last data
+0298   1903           00765                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0299   2A9D           00766                 GOTO    MZ5             ;YES, so end the DATA SEND routine
+029A   21A5           00767                 CALL    LCDOUT          ;No, send the data to LCD for display
+029B   0AA0           00768                 INCF    LOOP,F          ;inc loop
+029C   2A95           00769                 GOTO    ZMS5            ;repeat for next one letter
+029D   018A           00770 MZ5             CLRF    PCLATH
+029E   0008           00771                 RETURN  
+029F   0782           00772 MSGZ5           ADDWF   PCL,F           
+02A0   342A 342D 3420 00773                 DT  "*- YES #-NO",0     ;0 is an indicator for end of string
+       3459 3445 3453 
+       3420 3423 342D 
+       344E 344F 3400 
+                      00774 
+                      00775 
+                      00776 
+                      00777 
+                      00778 
+                      00779 
+                      00780 
+02AC   30C0           00781 ZONECHECK       MOVLW   H'C0'
+02AD   21B8           00782                 CALL    LCDCMD  
+02AE   2292           00783                 CALL    Z5MESSAGE
+02AF   01C4           00784                 CLRF    ZONECHK
+                      00785                         
+02B0   22BC           00786 LABAS           CALL    CHSOUINON
+02B1   21DB           00787                 CALL    GETKEY
+02B2   00C3           00788                 MOVWF   YESORNO
+                      00789                 
+02B3   0843           00790                 MOVFW   YESORNO                 
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 18
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+Message[305]: Using default destination of 1 (file).
+02B4   06C1           00791                 XORWF   YES
+02B5   1903           00792                 BTFSC   STATUS, Z
+02B6   2AC1           00793                 GOTO    VARZONECHK1
+Message[305]: Using default destination of 1 (file).
+02B7   06C2           00794                 XORWF   NO
+02B8   1903           00795                 BTFSC   STATUS, Z
+02B9   2AC3           00796                 GOTO    VARZONECHK2
+02BA   2AB0           00797                 GOTO    LABAS
+02BB   0008           00798 LA              RETURN
+                      00799 
+                      00800 
+                      00801 
+                      00802 
+                      00803 
+02BC   302A           00804 CHSOUINON       MOVLW   H'2A'
+02BD   00C1           00805                 MOVWF   YES
+                      00806                 
+02BE   3023           00807                 MOVLW   H'23'
+02BF   00C2           00808                 MOVWF   NO
+02C0   0008           00809                 RETURN  
+                      00810 
+                      00811 
+                      00812 
+                      00813                         
+                      00814 
+                      00815 
+                      00816 
+02C1   14C4           00817 VARZONECHK1     BSF     ZONECHK,1
+02C2   2ABB           00818                 GOTO    LA
+                      00819                         
+                      00820 
+02C3   10C4           00821 VARZONECHK2     BCF     ZONECHK,1
+02C4   2ABB           00822                 GOTO    LA 
+                      00823 
+                      00824 
+                      00825 
+                      00826 
+                      00827 
+                      00828 
+                      00829 
+02C5   18C4           00830 ZONE10          BTFSC   ZONECHK,1
+02C6   1445           00831                 BSF     ZONE1,0
+02C7   0008           00832                 RETURN
+                      00833 
+                      00834 
+02C8   18C4           00835 ZONE20          BTFSC   ZONECHK,1
+02C9   1446           00836                 BSF     ZONE2,0
+02CA   0008           00837                 RETURN
+                      00838 
+                      00839 
+                      00840 
+02CB   18C4           00841 ZONE30          BTFSC   ZONECHK,1
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 19
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+02CC   1447           00842                 BSF     ZONE3,0
+02CD   0008           00843                 RETURN
+                      00844 
+                      00845 
+02CE   18C4           00846 ZONE40          BTFSC   ZONECHK,1
+02CF   1448           00847                 BSF     ZONE4,0
+02D0   0008           00848                 RETURN
+                      00849                         
+                      00850 
+                      00851 
+02D1   218C           00852 SHOWZONES       CALL    LCDSET
+02D2   22DE           00853                 CALL    ACTIVMSG
+02D3   30C0           00854                 MOVLW   H'C0'
+02D4   21B8           00855                 CALL    LCDCMD  
+02D5   1845           00856                 BTFSC   ZONE1,0
+02D6   22FB           00857                 CALL    Z7MESSAGE       
+02D7   1846           00858                 BTFSC   ZONE2,0
+02D8   230C           00859                 CALL    Z8MESSAGE       
+02D9   1847           00860                 BTFSC   ZONE3,0
+02DA   231D           00861                 CALL    Z9MESSAGE       
+02DB   1848           00862                 BTFSC   ZONE4,0
+02DC   232F           00863                 CALL    Z10MESSAGE
+02DD   0008           00864                 RETURN
+                      00865 
+                      00866 
+                      00867 
+02DE   01A0           00868 ACTIVMSG        CLRF    LOOP            ;clear loop
+02DF   1624           00869                 BSF     RSLINE,4
+02E0   018A           00870                 CLRF    PCLATH  ;set RS for data send
+02E1   0820           00871 ZMS6            MOVF    LOOP,W
+02E2   018A           00872                 CLRF    PCLATH          ;get table address
+02E3   22EB           00873                 CALL    MSGZ6           ;get message letter
+02E4   3A00           00874                 XORLW   0X00            ;0x00 is the indicator for last data
+02E5   1903           00875                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+02E6   2AEA           00876                 GOTO    MZ6                     ;YES, so end the DATA SEND routine
+02E7   21A5           00877                 CALL    LCDOUT          ;No, send the data to LCD for display
+02E8   0AA0           00878                 INCF    LOOP,F          ;inc loop
+02E9   2AE1           00879                 GOTO    ZMS6            ;repeat for next one letter
+02EA   0008           00880 MZ6             RETURN  
+02EB   148A           00881 MSGZ6           BSF     PCLATH,1
+02EC   0782           00882                 ADDWF   PCL,F           
+02ED   3441 3443 3454 00883                 DT "ACTIVE ZONES:",0    ;0 is an indicator for end of string
+       3449 3456 3445 
+       3420 345A 344F 
+       344E 3445 3453 
+       343A 3400 
+                      00884 
+02FB   01A0           00885 Z7MESSAGE       CLRF    LOOP            ;clear loop
+02FC   1624           00886                 BSF     RSLINE,4
+02FD   018A           00887                 CLRF    PCLATH          ;set RS for data send
+02FE   0820           00888 ZMS7            MOVF    LOOP,W          ;get table address
+02FF   2307           00889                 CALL    MSGZ7           ;get message letter
+0300   3A00           00890                 XORLW   0X00            ;0x00 is the indicator for last data
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 20
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0301   1903           00891                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0302   2B06           00892                 GOTO    MZ7             ;YES, so end the DATA SEND routine
+0303   21A5           00893                 CALL    LCDOUT          ;No, send the data to LCD for display
+0304   0AA0           00894                 INCF    LOOP,F          ;inc loop
+0305   2AFE           00895                 GOTO    ZMS7            ;repeat for next one letter
+0306   0008           00896 MZ7             RETURN  
+0307   148A           00897 MSGZ7           BSF     PCLATH,1
+0308   0782           00898                 ADDWF   PCL,F           
+0309   3420 3431 3400 00899                 DT " 1",0       ;0 is an indicator for end of string
+                      00900 
+                      00901 
+030C   01A0           00902 Z8MESSAGE       CLRF    LOOP            ;clear loop
+030D   1624           00903                 BSF     RSLINE,4
+030E   140A           00904                 BSF     PCLATH,0   ;;;;;;;;;;;;;;;;ITS WORKING!!
+                      00905                 ;CLRF   PCLATH          ;set RS for data send
+030F   0820           00906 ZMS8            MOVF    LOOP,W          ;get table address
+0310   2319           00907                 CALL    MSGZ8           ;get message letter
+0311   3A00           00908                 XORLW   0X00            ;0x00 is the indicator for last data
+0312   1903           00909                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0313   2B17           00910                 GOTO    MZ8             ;YES, so end the DATA SEND routine
+0314   21A5           00911                 CALL    LCDOUT          ;No, send the data to LCD for display
+0315   0AA0           00912                 INCF    LOOP,F          ;inc loop
+0316   2B0F           00913                 GOTO    ZMS8            ;repeat for next one letter
+0317   018A           00914 MZ8             CLRF    PCLATH
+0318   0008           00915                 RETURN  
+0319                  00916 MSGZ8           
+0319   0782           00917                 ADDWF   PCL,F           
+031A   3420 3432 3400 00918                 DT " 2",0               ;0 is an indicator for end of string
+                      00919                         
+031D   01A0           00920 Z9MESSAGE       CLRF    LOOP            ;clear loop
+031E   1624           00921                 BSF     RSLINE,4
+031F   018A           00922                 CLRF    PCLATH
+0320   0820           00923 ZMS9            MOVF    LOOP,W          ;get table address
+0321   2329           00924                 CALL    MSGZ9           ;get message letter
+0322   3A00           00925                 XORLW   0X00            ;0x00 is the indicator for last data
+0323   1903           00926                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+0324   2B28           00927                 GOTO    MZ9             ;YES, so end the DATA SEND routine
+0325   21A5           00928                 CALL    LCDOUT          ;No, send the data to LCD for display
+0326   0AA0           00929                 INCF    LOOP,F          ;inc loop
+0327   2B20           00930                 GOTO    ZMS9            ;repeat for next one letter
+0328   0008           00931 MZ9             RETURN  
+0329   148A           00932 MSGZ9           BSF     PCLATH,1
+032A   140A           00933                 BSF     PCLATH,0
+032B   0782           00934                 ADDWF   PCL,F           
+032C   3420 3433 3400 00935                 DT " 3",0               ;0 is an indicator for end of string
+                      00936 
+032F   01A0           00937 Z10MESSAGE      CLRF    LOOP            ;clear loop
+0330   1624           00938                 BSF     RSLINE,4
+0331   018A           00939                 CLRF    PCLATH          ;set RS for data send
+0332   0820           00940 ZMS10           MOVF    LOOP,W          ;get table address
+0333   233B           00941                 CALL    MSGZ10          ;get message letter
+0334   3A00           00942                 XORLW   0X00            ;0x00 is the indicator for last data
+0335   1903           00943                 BTFSC   STATUS,Z        ;has last LCD letter been sent?
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 21
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0336   2B3A           00944                 GOTO    MZ10            ;YES, so end the DATA SEND routine
+0337   21A5           00945                 CALL    LCDOUT          ;No, send the data to LCD for display
+0338   0AA0           00946                 INCF    LOOP,F          ;inc loop
+0339   2B32           00947                 GOTO    ZMS10           ;repeat for next one letter
+033A   0008           00948 MZ10            RETURN  
+033B   148A           00949 MSGZ10          BSF     PCLATH,1
+033C   140A           00950                 BSF     PCLATH,0
+033D   0782           00951                 ADDWF   PCL,F           
+033E   3420 3434 3400 00952                 DT " 4",0               ;0 is an indicator for end of string
+                      00953 
+                      00954 
+                      00955                 END
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 22
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ACKDT                             00000005
+ACKEN                             00000004
+ACKSTAT                           00000006
+ACTIVMSG                          000002DE
+ADCON0                            0000001F
+ADCON1                            0000009F
+ADCS0                             00000006
+ADCS1                             00000007
+ADDEN                             00000003
+ADFM                              00000007
+ADIE                              00000006
+ADIF                              00000006
+ADON                              00000000
+ADRESH                            0000001E
+ADRESL                            0000009E
+APWD1                             00000031
+APWD2                             00000032
+APWD3                             00000033
+APWD4                             00000034
+ARM                               0000004B
+BCLIE                             00000003
+BCLIF                             00000003
+BF                                00000000
+BRGH                              00000002
+BUZZ                              000000F6
+C                                 00000000
+CCP1CON                           00000017
+CCP1IE                            00000002
+CCP1IF                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCP1X                             00000005
+CCP1Y                             00000004
+CCP2CON                           0000001D
+CCP2IE                            00000000
+CCP2IF                            00000000
+CCP2M0                            00000000
+CCP2M1                            00000001
+CCP2M2                            00000002
+CCP2M3                            00000003
+CCP2X                             00000005
+CCP2Y                             00000004
+CCPR1                             00000015
+CCPR1H                            00000016
+CCPR1L                            00000015
+CCPR2                             0000001B
+CCPR2H                            0000001C
+CCPR2L                            0000001B
+CHKMEN                            00000055
+CHKPWD                            00000029
+CHKZONMEN                         00000084
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 23
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+CHS0                              00000003
+CHS1                              00000004
+CHS2                              00000005
+CHSOUINON                         000002BC
+CKE                               00000006
+CKP                               00000004
+CLKCNT                            00000022
+CONFIRM                           00000037
+CONFMS2                           0000014F
+CONFMSG                           0000014D
+CREN                              00000004
+CSRC                              00000007
+D                                 00000005
+DATA_ADDRESS                      00000005
+DATA_EE_ADDR                      00000000
+DATA_EE_DATA                      00000005
+DC                                00000001
+DEBOUNCE                          0000021F
+DEFAUTPWD                         00000020
+DELAY                             000001A8
+DELAY1                            00000189
+D_A                               00000005
+D_LOOP                            00000221
+D_NOT_A                           00000005
+EEADR                             0000010D
+EEADRH                            0000010F
+EECON1                            0000018C
+EECON2                            0000018D
+EEDATA                            0000010C
+EEDATH                            0000010E
+EEIE                              00000004
+EEIF                              00000004
+EEPGD                             00000007
+ERRMS2                            00000170
+ERRMSG                            0000016C
+F                                 00000001
+FERR                              00000002
+FLAG                              0000004C
+FOUND1                            000001EF
+FOUND2                            000001F5
+FOUND3                            000001FB
+FSR                               00000004
+GCEN                              00000007
+GETKEY                            000001DB
+GIE                               00000007
+GO                                00000002
+GO_DONE                           00000002
+GO_NOT_DONE                       00000002
+I2C_DATA                          00000005
+I2C_READ                          00000002
+I2C_START                         00000003
+I2C_STOP                          00000004
+IBF                               00000007
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 24
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+IBOV                              00000005
+INDF                              00000000
+INITZONE                          000000D7
+INTCON                            0000000B
+INTE                              00000004
+INTEDG                            00000006
+INTF                              00000001
+IRP                               00000007
+KEY                               00000025
+KEY_COL1                          00000201
+KEY_COL2                          0000020B
+KEY_COL3                          00000215
+LA                                000002BB
+LABAS                             000002B0
+LCDCMD                            000001B8
+LCDDATA                           000001B5
+LCDMS2                            0000019C
+LCDMSG                            0000019A
+LCDOUT                            000001A5
+LCDSET                            0000018C
+LCDST2                            0000018F
+LOOP                              00000020
+LOOP1                             00000026
+LOOPA                             00000021
+LOOPB                             00000049
+MAIN                              0000000F
+MENKEY                            00000038
+MENU                              0000004F
+MENU1                             00000039
+MENU2                             00000040
+MENU3                             0000004A
+MESSAG                            000001CA
+MSGCONF                           0000015A
+MSGEND                            000001A4
+MSGEND1                           00000158
+MSGEND2                           00000178
+MSGERR                            0000017A
+MSGSET                            00000120
+MSGSET1                           0000011E
+MSGSETPWD                         00000105
+MSGSETPWD1                        00000104
+MSGSHWZONE                        000000B6
+MSGSHWZONE1                       000000B5
+MSGSLTZ                           000000E9
+MSGSLTZ1                          000000E7
+MSGSLTZONE                        0000009B
+MSGSLTZONE1                       0000009A
+MSGZ1                             00000230
+MSGZ10                            0000033B
+MSGZ2                             0000024C
+MSGZ3                             00000268
+MSGZ4                             00000283
+MSGZ5                             0000029F
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 25
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+MSGZ6                             000002EB
+MSGZ7                             00000307
+MSGZ8                             00000319
+MSGZ9                             00000329
+MSGZONE                           0000013B
+MSGZONE1                          00000139
+MZ1                               0000022F
+MZ10                              0000033A
+MZ2                               0000024A
+MZ3                               00000266
+MZ4                               00000282
+MZ5                               0000029D
+MZ6                               000002EA
+MZ7                               00000306
+MZ8                               00000317
+MZ9                               00000328
+NAYE                              0000001C
+NO                                00000042
+NOT_A                             00000005
+NOT_ADDRESS                       00000005
+NOT_BO                            00000000
+NOT_BOR                           00000000
+NOT_DONE                          00000002
+NOT_PD                            00000003
+NOT_POR                           00000001
+NOT_RBPU                          00000007
+NOT_RC8                           00000006
+NOT_T1SYNC                        00000002
+NOT_TO                            00000004
+NOT_TX8                           00000006
+NOT_W                             00000002
+NOT_WRITE                         00000002
+OBF                               00000006
+OERR                              00000001
+OPTION_REG                        00000081
+P                                 00000004
+PAUS                              00000187
+PAUSE                             000001BE
+PAUSIT                            000001BB
+PCFG0                             00000000
+PCFG1                             00000001
+PCFG2                             00000002
+PCFG3                             00000003
+PCL                               00000002
+PCLATH                            0000000A
+PCON                              0000008E
+PEIE                              00000006
+PEN                               00000002
+PIE1                              0000008C
+PIE2                              0000008D
+PIR1                              0000000C
+PIR2                              0000000D
+PORTA                             00000005
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 26
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+PORTB                             00000006
+PORTC                             00000007
+PORTD                             00000008
+PORTE                             00000009
+PR2                               00000092
+PS0                               00000000
+PS1                               00000001
+PS2                               00000002
+PSA                               00000003
+PSPIE                             00000007
+PSPIF                             00000007
+PSPMODE                           00000004
+PWD1                              00000027
+PWD2                              00000028
+PWD3                              00000029
+PWD4                              00000030
+R                                 00000002
+RA0                               00000000
+RA1                               00000001
+RA2                               00000002
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RB0                               00000000
+RB1                               00000001
+RB2                               00000002
+RB3                               00000003
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RBIE                              00000003
+RBIF                              00000000
+RC0                               00000000
+RC1                               00000001
+RC2                               00000002
+RC3                               00000003
+RC4                               00000004
+RC5                               00000005
+RC6                               00000006
+RC7                               00000007
+RC8_9                             00000006
+RC9                               00000006
+RCD8                              00000000
+RCEN                              00000003
+RCIE                              00000005
+RCIF                              00000005
+RCREG                             0000001A
+RCSTA                             00000018
+RD                                00000000
+RD0                               00000000
+RD1                               00000001
+RD2                               00000002
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 27
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+RD3                               00000003
+RD4                               00000004
+RD5                               00000005
+RD6                               00000006
+RD7                               00000007
+RE0                               00000000
+RE1                               00000001
+RE2                               00000002
+READ_WRITE                        00000002
+RP0                               00000005
+RP1                               00000006
+RSEN                              00000001
+RSLINE                            00000024
+RX9                               00000006
+RX9D                              00000000
+R_NOT_W                           00000002
+R_W                               00000002
+S                                 00000003
+SELECTZONE                        000000C3
+SEN                               00000000
+SENDIT                            000001AD
+SETEND                            00000198
+SETMENV                           00000062
+SETMS2                            00000116
+SETMSG                            00000113
+SETPWD                            00000069
+SETPWDMSG                         000000F9
+SETPWDMSG2                        000000FC
+SHOWZONES                         000002D1
+SHWZONEMSG                        000000AA
+SHWZONEMSG2                       000000AD
+SLTZMS2                           000000DE
+SLTZMSG                           000000DC
+SLTZONEMSG                        0000008F
+SLTZONEMSG2                       00000092
+SMP                               00000007
+SPBRG                             00000099
+SPEN                              00000007
+SREN                              00000005
+SSPADD                            00000093
+SSPBUF                            00000013
+SSPCON                            00000014
+SSPCON2                           00000091
+SSPEN                             00000005
+SSPIE                             00000003
+SSPIF                             00000003
+SSPM0                             00000000
+SSPM1                             00000001
+SSPM2                             00000002
+SSPM3                             00000003
+SSPOV                             00000006
+SSPSTAT                           00000094
+START                             00000001
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 28
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+STATUS                            00000003
+STORE                             00000023
+SUBSETPWD                         0000006D
+SYNC                              00000004
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0SE                              00000004
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000010
+T1INSYNC                          00000002
+T1OSCEN                           00000003
+T1SYNC                            00000002
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000012
+TABLCD                            000001C4
+TEMP1                             00000036
+TEMPXOR                           00000035
+TMR0                              00000001
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR1                              0000000E
+TMR1CS                            00000001
+TMR1H                             0000000F
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1L                             0000000E
+TMR1ON                            00000000
+TMR2                              00000011
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2ON                            00000002
+TOUTPS0                           00000003
+TOUTPS1                           00000004
+TOUTPS2                           00000005
+TOUTPS3                           00000006
+TRISA                             00000085
+TRISA0                            00000000
+TRISA1                            00000001
+TRISA2                            00000002
+TRISA3                            00000003
+TRISA4                            00000004
+TRISA5                            00000005
+TRISB                             00000086
+TRISB0                            00000000
+TRISB1                            00000001
+TRISB2                            00000002
+TRISB3                            00000003
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 29
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+TRISB7                            00000007
+TRISC                             00000087
+TRISC0                            00000000
+TRISC1                            00000001
+TRISC2                            00000002
+TRISC3                            00000003
+TRISC4                            00000004
+TRISC5                            00000005
+TRISC6                            00000006
+TRISC7                            00000007
+TRISD                             00000088
+TRISD0                            00000000
+TRISD1                            00000001
+TRISD2                            00000002
+TRISD3                            00000003
+TRISD4                            00000004
+TRISD5                            00000005
+TRISD6                            00000006
+TRISD7                            00000007
+TRISE                             00000089
+TRISE0                            00000000
+TRISE1                            00000001
+TRISE2                            00000002
+TRMT                              00000001
+TX8_9                             00000006
+TX9                               00000006
+TX9D                              00000000
+TXD8                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXREG                             00000019
+TXSTA                             00000098
+UA                                00000001
+VARZONECHK1                       000002C1
+VARZONECHK2                       000002C3
+W                                 00000000
+WCOL                              00000007
+WR                                00000001
+WREN                              00000002
+WRERR                             00000003
+YES                               00000041
+YESORNO                           00000043
+Z                                 00000002
+Z10MESSAGE                        0000032F
+Z1MESSAGE                         00000224
+Z2MESSAGE                         0000023F
+Z3MESSAGE                         0000025B
+Z4MESSAGE                         00000277
+Z5MESSAGE                         00000292
+Z7MESSAGE                         000002FB
+Z8MESSAGE                         0000030C
+Z9MESSAGE                         0000031D
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 30
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+ZMS1                              00000227
+ZMS10                             00000332
+ZMS2                              00000242
+ZMS3                              0000025E
+ZMS4                              0000027A
+ZMS5                              00000295
+ZMS6                              000002E1
+ZMS7                              000002FE
+ZMS8                              0000030F
+ZMS9                              00000320
+ZONE1                             00000045
+ZONE10                            000002C5
+ZONE2                             00000046
+ZONE20                            000002C8
+ZONE3                             00000047
+ZONE30                            000002CB
+ZONE4                             00000048
+ZONE40                            000002CE
+ZONECHECK                         000002AC
+ZONECHK                           00000044
+ZONEMS2                           00000131
+ZONEMSG                           0000012E
+ZONMEN                            0000007E
+_BODEN_OFF                        00003FBF
+_BODEN_ON                         00003FFF
+_BOREN_OFF                        00003FBF
+_BOREN_ON                         00003FFF
+_CONFIG                           00002007
+_CPD_OFF                          00003FFF
+_CPD_ON                           00003EFF
+_CP_ALL                           00000FCF
+_CP_HALF                          00001FDF
+_CP_OFF                           00003FFF
+_CP_UPPER_256                     00002FEF
+_DEBUG_OFF                        00003FFF
+_DEBUG_ON                         000037FF
+_DEVID1                           00002006
+_FOSC_EXTRC                       00003FFF
+_FOSC_HS                          00003FFE
+_FOSC_LP                          00003FFC
+_FOSC_XT                          00003FFD
+_HS_OSC                           00003FFE
+_IDLOC0                           00002000
+_IDLOC1                           00002001
+_IDLOC2                           00002002
+_IDLOC3                           00002003
+_LP_OSC                           00003FFC
+_LVP_OFF                          00003F7F
+_LVP_ON                           00003FFF
+_PWRTE_OFF                        00003FFF
+_PWRTE_ON                         00003FF7
+_RC_OSC                           00003FFF
+_WDTE_OFF                         00003FFB
+MPASM 5.72             16F877_LCD_KEYPAD.ASM   4-10-2017  21:33:21         PAGE 31
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+_WDTE_ON                          00003FFF
+_WDT_OFF                          00003FFB
+_WDT_ON                           00003FFF
+_WRT_ENABLE_OFF                   00003DFF
+_WRT_ENABLE_ON                    00003FFF
+_WRT_OFF                          00003DFF
+_WRT_ON                           00003FFF
+_XT_OSC                           00003FFD
+__16F877A                         00000001
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+0000 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0080 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0100 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0140 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0180 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+01C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0200 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0240 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0280 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+02C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0300 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0340 : X--------------- ---------------- ---------------- ----------------
+
+All other memory blocks unused.
+
+Program Memory Words Used:   833
+Program Memory Words Free:  7359
+
+
+Errors   :     0
+Warnings :     3 reported,     0 suppressed
+Messages :    20 reported,     0 suppressed
+
+
